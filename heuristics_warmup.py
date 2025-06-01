@@ -3,28 +3,26 @@
 import random
 from poker_env import Action
 from rangos import (
+    PRE_FLOP_OPEN_RANGES,
+    PRE_FLOP_CALL_RANGES,
+    BET_SIZING_RULES,
+    RIVER_TIPS,
+    HAND_READING_PRINCIPLES,
     get_open_range,
-    get_call_range
+    get_call_range,
+    suggest_bet_size
 )
+from bucket_features import real_equity_estimate
 
-# ----------------------------------------------------------------
-# IMPORTS ADICIONALES NECESARIOS PARA MONTE CARLO (CÁLCULO DE EQUITY)
-# ----------------------------------------------------------------
-from treys import Card, Evaluator
-from poker_env import rank_suit_to_str
-
-# Creamos un Evaluator global para usarlo en la simulación
-_evaluator = Evaluator()
-
-# Para convertir hole cards (tupla o string) a notación como "AKs", "99", "72o"
+# --------------------------------------------
+# Util para notación de manos “AKs”, “99”, “72o”
+# --------------------------------------------
 _RANK_ORDER = "23456789TJQKA"
 
 def hole_to_notation(hole):
     """
-    hole: lista/tupla de dos cartas, cada carta puede ser
-      - string "As", "Td", etc.  (ej.: 'Ah', 'Ks')
-      - tupla (rank_int, suit_int), rank_int ∈ [2..14], suit_int ∈ [0..3]
-    Devuelve "AKs", "99", "72o", etc.
+    hole: lista/tupla de 2 cartas (string 'As' o tupla (14,1)).
+    Devuelve “AKs”, “99”, “72o”, etc.
     """
     if isinstance(hole[0], str):
         r1, s1 = hole[0][0], hole[0][1]
@@ -50,32 +48,28 @@ def hole_to_notation(hole):
     return f"{high}{low}" + ("s" if suited else "o")
 
 
-# ------------------------------------------------------
-# UTILIDADES PARA POSICIONES EN PÓKER 6-MÁX (NO CAMBIAN)
-# ------------------------------------------------------
+# --------------------------------------------
+# Posiciones 6-max
+# --------------------------------------------
 POSITIONS_6MAX = ["UTG", "EP", "MP", "HJ", "CO", "BTN"]
 
 def get_position(gs):
     """
-    Asume 6 jugadores. gs.dealer ∈ [0..5], gs.to_act ∈ [0..5] en orden secuencial de asientos.
-    Retorna posición textual en POSITIONS_6MAX ordenado antihorario: [UTG, EP, MP, HJ, CO, BTN]
+    gs.dealer ∈ [0..5], gs.to_act ∈ [0..5]; retorna la posición textual en 6-max.
     """
     rel = (gs.to_act - ((gs.dealer + 3) % 6) + 6) % 6
     return POSITIONS_6MAX[rel]
 
 def get_raiser_position(gs):
     """
-    Identifica la posición textual del primer raiser en la mano preflop
-    (solo para usar en rangos de defensa preflop).
+    Encuentra la posición textual del primer raiser preflop en gs.history.
     """
     if 'r' not in gs.history:
         return None
     idx_raise = gs.history.index('r')
     asiento_raiser = (gs.dealer + 1 + idx_raise) % 6
 
-    class DummyGS:
-        pass
-
+    class DummyGS: pass
     dgs = DummyGS()
     dgs.dealer = gs.dealer
     dgs.to_act = asiento_raiser
@@ -83,25 +77,24 @@ def get_raiser_position(gs):
 
 
 # --------------------------------------------
-# 1) PRE-FLOP HEURISTICS (Cubrimos TODOS los escenarios)
+# 1) PRE-FLOP HEURISTICS
 # --------------------------------------------
 def preflop_heuristic_action(gs):
     pos_defender = get_position(gs)
     hole = gs.hole_cards[gs.to_act]
     hand_not = hole_to_notation(hole)
 
-    # 1) Si no hay history: open-raise según rango
+    # 1) Sin history: open-raise según rango
     if gs.history == "":
         open_pct, open_hands = get_open_range(pos_defender)
         if hand_not in open_hands:
-            # En HU, usamos RAISE_LARGE si venimos de posiciones tempranas
             if pos_defender in ["UTG", "EP", "MP"]:
                 return Action.RAISE_LARGE
             return Action.RAISE_MEDIUM
         else:
             return Action.FOLD
 
-    # 2) Si ya hubo raise: defender según rangos de call
+    # 2) Ya hubo raise: defender según rangos de call
     pos_raiser = get_raiser_position(gs)
     if pos_raiser is None:
         return Action.FOLD
@@ -130,12 +123,9 @@ def preflop_heuristic_action(gs):
 # --------------------------------------------
 # 2) POSTFLOP HEURISTICS (FLOP y TURN)
 # --------------------------------------------
-def evaluate_pocket_pair(hole, community, gs=None):
+def evaluate_pocket_pair(hole, community):
     """
-    Si el jugador tiene pocket-pair preflop, detectamos si conectó set/trío:
-      - hole es pocket-pair
-      - en community (flop/turn) aparece alguna carta del mismo rank
-    Entonces devolvemos True (set/trío).
+    Devuelve True si hole es pocket-pair y hay al menos una carta del mismo rank en community.
     """
     if isinstance(hole[0], str):
         r1 = hole[0][0]
@@ -147,7 +137,6 @@ def evaluate_pocket_pair(hole, community, gs=None):
     if r1 != r2:
         return False
 
-    # Si es pocket-pair, chequeamos si muestra set/trío en board
     for c in community:
         if isinstance(c, str):
             if c[0] == r1:
@@ -156,27 +145,22 @@ def evaluate_pocket_pair(hole, community, gs=None):
             r_comm = _RANK_ORDER[c[0] - 2]
             if r_comm == r1:
                 return True
-
     return False
 
 def has_flush_draw(hole, community):
     """
-    Detecta proyectos de color en flop/turn: 
-    al menos 2 cartas del mismo palo entre hole y board.
+    Detecta proyecto de color: al menos 2 del mismo palo en hole y ≥2 en community.
     """
-    def suit_val(card):
-        return card[1] if isinstance(card, str) else card[1]
-
-    suits_hole = [suit_val(hole[0]), suit_val(hole[1])]
-    board_suits = [suit_val(c) for c in community]
-    for s in suits_hole:
-        if board_suits.count(s) >= 2:
+    suits_h = [c[1] for c in hole]
+    suits_b = [c[1] for c in community]
+    for s in suits_h:
+        if suits_b.count(s) >= 2:
             return True
     return False
 
 def determine_board_texture(community):
     """
-    Clasifica textura del board en 'dry', 'wet' o 'neutral' (solo para flop).
+    Retorna 'dry', 'wet' o 'neutral' según las primeras 3 cartas del board.
     """
     if len(community) < 3:
         return "neutral"
@@ -202,25 +186,48 @@ def postflop_heuristic_action(gs):
     hole = gs.hole_cards[gs.to_act]
     community = gs.community_cards
 
-    # 1) Si es pocket-pair y conectó set/trío, hacemos un RAISE_MEDIUM
+    # 1) Si es pocket-pair y conectó set/trío
     if evaluate_pocket_pair(hole, community):
-        return Action.RAISE_MEDIUM
-
-    # 2) Si hay flush draw, pagamos o hacemos RAISE_SMALL
-    if has_flush_draw(hole, community):
-        to_call = gs.current_bet - (gs.player_current_bet if gs.to_act == 0 else gs.bot_current_bet)
-        if to_call > 0:
-            return Action.CALL
+        in_3bet_pot = ('r' in gs.history and gs.history.count('r') >= 2)
+        texture = determine_board_texture(community)
+        bs_low, bs_high = suggest_bet_size(
+            texture,
+            "turn" if len(community) == 4 else "flop",
+            in_3bet_pot
+        )
+        if bs_low >= 0.55:
+            return Action.RAISE_MEDIUM
         return Action.RAISE_SMALL
 
-    # 3) Caso genérico: fold/call según pot odds simplificado
-    to_call = gs.current_bet - (gs.player_current_bet if gs.to_act == 0 else gs.bot_current_bet)
+    # 2) Flush draw
+    if has_flush_draw(hole, community):
+        to_call = gs.current_bet - (
+            gs.player_current_bet if gs.to_act == 0 else gs.bot_current_bet
+        )
+        if to_call > 0:
+            eq = real_equity_estimate(hole, community, num_sim=20)
+            pot = gs.pot
+            pot_odds = to_call / (pot + to_call) if (pot + to_call) > 0 else 1.0
+            if eq >= pot_odds:
+                return Action.CALL
+            return Action.FOLD
+        else:
+            return Action.RAISE_SMALL
+
+    # 3) Caso genérico: fold/call según equity real vs pot odds
+    to_call = gs.current_bet - (
+        gs.player_current_bet if gs.to_act == 0 else gs.bot_current_bet
+    )
     if to_call > 0:
-        if to_call <= gs.pot * 0.2:
+        eq = real_equity_estimate(hole, community, num_sim=20)
+        pot = gs.pot
+        pot_odds = to_call / (pot + to_call) if (pot + to_call) > 0 else 1.0
+        if eq >= pot_odds:
             return Action.CALL
-        return Action.FOLD
+        else:
+            return Action.FOLD
     else:
-        return Action.CALL  # check
+        return Action.CALL  # CHECK
 
 
 # --------------------------------------------
@@ -228,25 +235,13 @@ def postflop_heuristic_action(gs):
 # --------------------------------------------
 def compute_pot_odds(villain_bet, current_pot):
     total_if_called = current_pot + villain_bet + villain_bet
-    if total_if_called <= 0:
-        return 0.0
-    return (villain_bet / total_if_called) * 100
-
-def compute_bluff_odds(bluff_bet, current_pot):
-    total_with_bluff = current_pot + bluff_bet
-    if total_with_bluff <= 0:
-        return 0.0
-    return (bluff_bet / total_with_bluff) * 100
+    return (villain_bet / total_if_called) * 100 if total_if_called > 0 else 0.0
 
 def has_nut_blocker(hole, community):
     """
-    Detecta bloqueadores de nut flush en el river: 
-    Si board ya tiene 4 cartas de un mismo palo y hole contenga As de ese palo.
+    True si el board ya tiene 4 cartas de un mismo palo y hole contiene As de ese palo.
     """
-    def suit_val(card):
-        return card[1] if isinstance(card, str) else card[1]
-
-    suits_community = [suit_val(c) for c in community]
+    suits_community = [c[1] for c in community]
     for c in hole:
         if isinstance(c, str):
             r, s = c[0], c[1]
@@ -257,111 +252,39 @@ def has_nut_blocker(hole, community):
             return True
     return False
 
-def simple_equity_estimate(hole, community):
-    """
-    Estimación MUY simplificada de equity en river y también para FLOP (cuando la uses ahí):
-      - Si evaluate_pocket_pair(...) retorna True → equity 0.85 (trío o mejor).
-      - Si hay alguna carta de hole igual a comunidad → equity 0.50 (pair medio).
-      - En cualquier otro caso → equity 0.10.
-    """
-    if evaluate_pocket_pair(hole, community):
-        return 0.85
-
-    hole_ranks = set()
-    for c in hole:
-        if isinstance(c, str):
-            hole_ranks.add(c[0])
-        else:
-            hole_ranks.add(_RANK_ORDER[c[0] - 2])
-    comm_ranks = set()
-    for c in community:
-        if isinstance(c, str):
-            comm_ranks.add(c[0])
-        else:
-            comm_ranks.add(_RANK_ORDER[c[0] - 2])
-    if hole_ranks & comm_ranks:
-        return 0.5
-
-    return 0.1
-
 def river_heuristic_action(gs):
     hole = gs.hole_cards[gs.to_act]
-    community = gs.community_cards  # 5 cartas en river
-    to_call = gs.current_bet - (gs.player_current_bet if gs.to_act == 0 else gs.bot_current_bet)
+    community = gs.community_cards
+    to_call = gs.current_bet - (
+        gs.player_current_bet if gs.to_act == 0 else gs.bot_current_bet
+    )
     pot = gs.pot
 
-    equity = simple_equity_estimate(hole, community)
+    # 1) Equity real en river
+    eq = real_equity_estimate(hole, community, num_sim=30)
 
-    # 1) Si hay que pagar
     if to_call > 0:
         pot_odds_pct = compute_pot_odds(to_call, pot)
-        if (equity * 100) >= pot_odds_pct:
+        if (eq * 100) >= pot_odds_pct:
             return Action.CALL
         else:
             return Action.FOLD
 
-    # 2) Si no hay que pagar, y hay bloqueador de nut‐flush, vamos ALL‐IN
+    # 2) Si no hay que pagar: raise si bloqueador de nut flush
     if has_nut_blocker(hole, community):
         return Action.RAISE_LARGE
 
-    # 3) Caso genérico: check
+    # 3) Bluff razonable si equity ≥ 0.3
+    if eq >= 0.3:
+        return Action.RAISE_MEDIUM
+
+    # 4) En otro caso: check/call
     return Action.CALL
 
 
-# --------------------------------------------------
-# MONTE CARLO EQUITY (USANDO treys/Evaluator)
-# --------------------------------------------------
-def monte_carlo_equity(hole, community, to_simulate=1000):
-    """
-    Simula rivales aleatorios y calcula equity aproximada usando 'treys'.
-    hole       : lista de 2 cartas propias, cada carta como string "As", "Td", etc.
-    community  : lista de cartas comunitarias (0..5 cartas), cada carta como string.
-    to_simulate: número de iteraciones Monte Carlo.
-    Devuelve (ganas + empates * 0.5) / total_simulaciones.
-    """
-    # 1) Construir mazo completo y quitar las cartas conocidas
-    full_deck = []
-    suits = ["H", "D", "C", "S"]
-    ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"]
-    for r in ranks:
-        for s in suits:
-            full_deck.append(r + s)
-
-    known = set(hole + community)
-    remaining = [c for c in full_deck if c not in known]
-
-    wins = 0
-    ties = 0
-    total = to_simulate
-
-    for _ in range(to_simulate):
-        random.shuffle(remaining)
-        opp_hole = remaining[:2]
-        cards_needed = 5 - len(community)
-        board_extra = remaining[2 : 2 + cards_needed]
-        final_board = community + board_extra
-
-        # Convertir a treys para evaluación
-        own_board_treys = [Card.new(rank_suit_to_str(c)) for c in final_board]
-        own_hand_treys  = [Card.new(rank_suit_to_str(c)) for c in hole]
-        opp_board_treys = [Card.new(rank_suit_to_str(c)) for c in final_board]
-        opp_hand_treys  = [Card.new(rank_suit_to_str(c)) for c in opp_hole]
-
-        own_score = _evaluator.evaluate(own_board_treys, own_hand_treys)
-        opp_score = _evaluator.evaluate(opp_board_treys, opp_hand_treys)
-
-        # En Treys, score más bajo = mejor mano
-        if own_score < opp_score:
-            wins += 1
-        elif own_score == opp_score:
-            ties += 1
-
-    return (wins + ties * 0.5) / total
-
-
-# --------------------------------------------------
+# --------------------------------------------
 # Función unificada de heurística según fase
-# --------------------------------------------------
+# --------------------------------------------
 def heuristic_action(gs):
     if gs.phase == "preflop":
         return preflop_heuristic_action(gs)

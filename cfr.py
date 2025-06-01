@@ -3,9 +3,19 @@
 import numpy as np
 import random
 from sklearn.cluster import KMeans
-from poker_env import create_deck, hand_to_features, GameState, get_bucket, INITIAL_STACK, Action
 
-from heuristics_warmup import heuristic_action, monte_carlo_equity
+from poker_env import (
+    create_deck,
+    GameState,
+    INITIAL_STACK,
+    Action
+)
+
+from bucket_features import (
+    hand_to_features_enhanced,
+    real_equity_estimate
+)
+from heuristics_warmup import heuristic_action
 
 NUM_ACTIONS = len(Action)
 
@@ -17,7 +27,11 @@ class Node:
         self.regret_sum = np.zeros(num_actions)
         self.strategy_sum = np.zeros(num_actions)
 
-    def get_strategy(self, epsilon=0.0):
+    def get_strategy(self, realization_weight, epsilon=0.0):
+        """
+        realization_weight: reach probability para este nodo.
+        epsilon: probabilidad de explorar (ε-greedy).
+        """
         positive = np.maximum(self.regret_sum, 0)
         if positive.sum() > 0:
             strat = positive / positive.sum()
@@ -27,8 +41,7 @@ class Node:
         if epsilon > 0:
             strat = (1 - epsilon) * strat + epsilon * (1.0 / self.num_actions)
 
-        # Peso fijo = 1 en vez de weight variable
-        self.strategy_sum += strat
+        self.strategy_sum += realization_weight * strat
         return strat
 
     def get_average_strategy(self):
@@ -38,165 +51,82 @@ class Node:
         return np.ones(self.num_actions) / self.num_actions
 
 
-def cfr_phase(
-    gs: GameState,
-    p0: float,
-    p1: float,
-    nodes: dict,
-    km: KMeans,
-    phase: str,
-    player: int = 0,
-    max_depth: int = 15,
-    epsilon: float = 0.0,
-    iter_count: int = 1,
-    total_iters: int = 1
-) -> float:
-    """
-    CFR+ recursivo con Monte Carlo ligero en flop/river.
-    """
-    # 1) Nodo terminal o profundidad 0 → devolver payoff real (o aproximación MC si no hay showdown)
-    if gs.is_terminal():
-        return gs.get_payoff(player)
-    if max_depth == 0:
-        # Si no profundizamos más, aproximar payoff con Monte Carlo en función de fase
-        deck = gs.deck.copy()
-        # Equity del jugador actual vs rango uniforme
-        hole = gs.hole_cards[gs.to_act]
-        community = gs.community_cards.copy()
-        equity = monte_carlo_equity(hole, community, deck, to_simulate=200)
-        to_call = gs.current_bet - (gs.player_current_bet if gs.to_act == 0 else gs.bot_current_bet)
-        return equity * gs.pot - (1 - equity) * to_call
-
-    # 2) Construir infoset
-    bucket = get_bucket(
-        km,
-        gs.hole_cards[gs.to_act],
-        gs.community_cards,
-        bet_size=gs.pot / INITIAL_STACK,
-        history=gs.history,
-        to_act=gs.to_act,
-        pot=gs.pot
-    )
-    infoset = f"{phase}|{bucket}|{gs.history}"
-
-    # 3) Crear nodo si no existe
-    if infoset not in nodes:
-        nodes[infoset] = Node(infoset)
-    node = nodes[infoset]
-
-    # 4) Estrategia actual con CFR+
-    # ε con decaimiento exponencial suave
-    lam = 1e-5
-    eps = epsilon * np.exp(-lam * iter_count)
-    strat = node.get_strategy(epsilon=eps)
-
-    util = np.zeros(node.num_actions)
-    node_util = 0.0
-
-    legal_actions = gs.legal_actions()
-
-    for a in legal_actions:
-        action_enum = Action(a)
-
-        # 5) Caso de all-in en flop/turn/river sin veto absoluto
-        # Simplemente dejamos que recorra el resto
-        # 6) Recursar o aproximar payoff con Monte Carlo
-        nxt = gs.apply_action(a)
-
-        # Determinar nuevo phase según gs.apply_action
-        next_phase = nxt.phase
-
-        if nxt.is_terminal():
-            util[a] = nxt.get_payoff(player)
-        else:
-            util[a] = -cfr_phase(
-                nxt,
-                p0 * (strat[a] if gs.to_act == 0 else 1.0),
-                p1 * (strat[a] if gs.to_act == 1 else 1.0),
-                nodes,
-                km,
-                next_phase,
-                player,
-                max_depth - 1,
-                epsilon,
-                iter_count + 1,
-                total_iters
-            )
-
-        node_util += strat[a] * util[a]
-
-    # 7) Actualizar regrets
-    for a in legal_actions:
-        regret = util[a] - node_util
-        if gs.to_act == 0:
-            node.regret_sum[a] += p1 * regret
-        else:
-            node.regret_sum[a] += p0 * regret
-
-    # Recocido suave de regrets (CFR+ clamp)
-    node.regret_sum = np.maximum(node.regret_sum, 0)
-
-    return node_util
-
-
 class CFRTrainer:
     def __init__(
         self,
         iterations_map=None,
         samples_map=None,
-        depth=20,
+        depth=15,
         epsilon_map=None
     ):
+        # Número de iteraciones por fase
         self.iterations_map = iterations_map or {
-            'preflop': 50000,
-            'flop': 30000,
-            'turn': 30000,
-            'river': 15000
-        }
-        self.samples_map = samples_map or {
             'preflop': 30000,
-            'flop': 15000,
-            'turn': 15000,
-            'river': 10000
+            'flop':   50000,
+            'turn':   30000,
+            'river':  10000
+        }
+        # Muestras para clustering
+        self.samples_map = samples_map or {
+            'preflop': 20000,
+            'flop':   10000,
+            'turn':   20000,
+            'river':  10000
         }
         self.depth = depth
+        # Epsilon para exploración que decae linealmente
         self.epsilon_map = epsilon_map or {
-            'preflop': 0.05,
-            'flop': 0.03,
-            'turn': 0.05,
-            'river': 0.01
+            'preflop': 0.10,
+            'flop':   0.05,
+            'turn':   0.10,
+            'river':  0.02
         }
 
+        # Almacenarán KMeans y nodos por fase
         self.kmeans_models = {}
         self.nodes = {}
+
+        # Estadísticas fold-equity empírica: fase -> {'RS': [int attempts, int folds], 'RM': [...]}
+        self.fold_stats = {
+            'preflop': {'RS': [1, 1], 'RM': [1, 1]},
+            'flop':    {'RS': [1, 1], 'RM': [1, 1]},
+            'turn':    {'RS': [1, 1], 'RM': [1, 1]},
+            'river':   {'RS': [1, 1], 'RM': [1, 1]},
+        }
 
     @staticmethod
     def _deal(deck, phase):
         """
-        Muestreo realista de cartas comunitarias:
-        - Preflop: []
-        - Flop: quemar 1 carta, tomar 3
-        - Turn: quemar 1 carta, tomar 1
-        - River: quemar 1 carta, tomar 1
+        Genera la lista parcial de cartas comunitarias según fase:
+          - preflop: []
+          - flop: deck[4:7]
+          - turn: deck[4:8]
+          - river: deck[4:9]
         """
-        d = deck.copy()
         if phase == 'preflop':
             return []
         if phase == 'flop':
-            # quemar d[0], flop = d[1:4]
-            return d[1:4]
+            return deck[4:7]
         if phase == 'turn':
-            # quemar d[4], turn = d[5]
-            return d[1:5] + [d[5]]
-        # River
-        return d[1:5] + [d[5]] + [d[7]]
+            return deck[4:8]
+        return deck[4:9]
 
-    def prefill_regrets(self, phase, km: KMeans, num_sims=20000, epsilon=0.01):
+    def prefill_regrets(self, phase, km: KMeans, num_sims=10000, epsilon=0.01):
+        """
+        Warm-up con heurísticas:
+          - Simula num_sims veces estados aleatorios.
+          - En cada estado, usa heuristic_action (que ahora emplea equity real en flop/river).
+          - Si la acción es RAISE_LARGE y equity_real < 0.85, se reemplaza por CALL.
+          - Genera regret inicial normalizado (= payoff / INITIAL_STACK).
+          - Registra estadísticas de fold-equity en raises RS/RM.
+        """
         from collections import defaultdict
 
+        # count_actions[infoset][a] = cuántas veces elegimos acción a en ese infoset
         count_actions = defaultdict(
             lambda: np.zeros(Node(info_set="", num_actions=NUM_ACTIONS).num_actions)
         )
+        # sum_utilities[infoset][a] = suma de utilidades (normalizadas) obtenidas cuando hicimos acción a
         sum_utilities = defaultdict(
             lambda: np.zeros(Node(info_set="", num_actions=NUM_ACTIONS).num_actions)
         )
@@ -207,132 +137,11 @@ class CFRTrainer:
             hole0, hole1 = deck[:2], deck[2:4]
             community = self._deal(deck, phase)
             pot = 10
-            to_act = 0
-            history = ""
-            stack0, stack1 = INITIAL_STACK, INITIAL_STACK
-
             gs = GameState(
-                hole0,
-                hole1,
-                community,
-                pot,
-                to_act,
-                history,
-                phase=phase,
-                stack0=stack0,
-                stack1=stack1,
-                current_bet=0,
-                bet0=0,
-                bet1=0,
-                dealer=0,
-                deck=deck
-            )
-
-            gs.player_current_bet = gs.bet[0]
-            gs.bot_current_bet = gs.bet[1]
-
-            path = []
-            while not gs.is_terminal():
-                comm = self._deal(gs.deck, gs.phase)
-                gs.community_cards = comm
-
-                gs.player_current_bet = gs.bet[0]
-                gs.bot_current_bet = gs.bet[1]
-
-                bucket = get_bucket(
-                    km,
-                    gs.hole_cards[gs.to_act],
-                    gs.community_cards,
-                    bet_size=gs.pot / INITIAL_STACK,
-                    history=gs.history,
-                    to_act=gs.to_act,
-                    pot=gs.pot
-                )
-                infoset = f"{phase}|{bucket}|{gs.history}"
-
-                # Acción heurística inicial
-                action_enum = heuristic_action(gs)
-
-                a_idx = action_enum.value
-                count_actions[infoset][a_idx] += 1
-                path.append((infoset, a_idx, gs.to_act))
-
-                try:
-                    gs = gs.apply_action(a_idx)
-                except OverflowError:
-                    break
-
-                if gs.is_terminal():
-                    break
-
-            payoff_p0 = gs.get_payoff(0)
-            payoff_p1 = -payoff_p0
-            for infoset, a_idx, player in path:
-                util = payoff_p0 if player == 0 else payoff_p1
-                sum_utilities[infoset][a_idx] += util
-
-        self.nodes[phase] = {}
-        for infoset, node_counts in count_actions.items():
-            if infoset not in self.nodes[phase]:
-                self.nodes[phase][infoset] = Node(infoset)
-            node = self.nodes[phase][infoset]
-
-            avg_util = np.zeros(node.num_actions)
-            for a in range(node.num_actions):
-                if node_counts[a] > 0:
-                    avg_util[a] = sum_utilities[infoset][a] / node_counts[a]
-                else:
-                    avg_util[a] = -1.0  # acción no probada
-
-            best_util = np.max(avg_util)
-            for a in range(node.num_actions):
-                node.regret_sum[a] = max(0.0, best_util - avg_util[a])
-
-            if node.regret_sum.sum() == 0:
-                node.regret_sum[:] = epsilon
-
-        print(f"[Warm-up] Prefill completo en fase '{phase}'. Nodos iniciales: {len(self.nodes[phase])}")
-
-    def train_phase(self, phase, st_logger=print):
-        st_logger(f"--- Entrenando {phase} CFR+ ---")
-        n_samp = self.samples_map[phase]
-        iters = self.iterations_map[phase]
-        eps0 = self.epsilon_map[phase]
-
-        # 1) Clustering KMeans
-        samples = []
-        for _ in range(n_samp):
-            deck = create_deck()
-            random.shuffle(deck)
-            hole, comm = deck[:2], self._deal(deck, phase)
-            samples.append(
-                hand_to_features(
-                    hole,
-                    comm,
-                    bet_size=10 / self.depth,
-                    history='',
-                    to_act=0,
-                    pot=10
-                )
-            )
-        km = KMeans(n_clusters=max(2, int(n_samp**0.5)), random_state=42).fit(np.array(samples))
-        self.kmeans_models[phase] = km
-
-        # 2) Warm-up
-        self.prefill_regrets(phase, km=km, num_sims=n_samp, epsilon=eps0)
-
-        # 3) CFR puro / CFR+
-        utils_block = []
-        for i in range(1, iters + 1):
-            deck = create_deck()
-            random.shuffle(deck)
-            hole0, hole1 = deck[:2], deck[2:4]
-            comm = self._deal(deck, phase)
-            gs = GameState(
-                hole0,
-                hole1,
-                comm,
-                pot=10,
+                hole0=hole0,
+                hole1=hole1,
+                community=community,
+                pot=pot,
                 to_act=0,
                 history='',
                 phase=phase,
@@ -345,36 +154,245 @@ class CFRTrainer:
                 deck=deck
             )
 
-            gs.player_current_bet = gs.bet[0]
-            gs.bot_current_bet = gs.bet[1]
+            path = []
+            while not gs.is_terminal():
+                gs.player_current_bet = gs.bet[0]
+                gs.bot_current_bet = gs.bet[1]
 
-            val = cfr_phase(
-                gs,
-                1.0,
-                1.0,
-                self.nodes[phase],
-                km,
-                phase,
-                player=0,
-                max_depth=self.depth,
-                epsilon=eps0,
-                iter_count=i,
-                total_iters=iters
+                # --- REEMPLAZO de get_bucket por hand_to_features_enhanced --- #
+                hole = gs.hole_cards[gs.to_act]
+                community_now = gs.community_cards
+                feats = hand_to_features_enhanced(
+                    hole,
+                    community_now,
+                    pot=gs.pot,
+                    history=gs.history,
+                    to_act=gs.to_act
+                )
+                bucket = km.predict(feats.reshape(1, -1))[0]
+                infoset = f"{phase}|{bucket}|{gs.history}"
+                # ------------------------------------------------------------- #
+
+                # 1) Acción heurística
+                action_enum = heuristic_action(gs)
+
+                # 2) Si es RAISE_LARGE y equity_real < 0.85, cambiamos a CALL
+                equity_now = real_equity_estimate(hole, community_now, num_sim=20)
+                if action_enum == Action.RAISE_LARGE and equity_now < 0.85:
+                    action_enum = Action.CALL
+
+                a_idx = action_enum.value
+                count_actions[infoset][a_idx] += 1
+                path.append((infoset, a_idx, gs.to_act, phase, action_enum))
+
+                # 3) Registrar fold-equity empírica si es raise_small o raise_medium
+                if action_enum in (Action.RAISE_SMALL, Action.RAISE_MEDIUM):
+                    key = 'RS' if action_enum == Action.RAISE_SMALL else 'RM'
+                    self.fold_stats[phase][key][0] += 1
+
+                prev_hist = gs.history
+                # --- Aquí envolvemos en try/except OverflowError ---
+                try:
+                    gs = gs.apply_action(a_idx)
+                except OverflowError:
+                    # Si la apuesta escala demasiado, interrumpimos este camino de warm-up
+                    break
+
+                if action_enum in (Action.RAISE_SMALL, Action.RAISE_MEDIUM):
+                    # Si justo después de ese raise hubo fold (historia añade 'f'), contamos
+                    if 'f' in gs.history and gs.history.replace('|','').startswith(prev_hist.replace('|','') + 'r'):
+                        key = 'RS' if action_enum == Action.RAISE_SMALL else 'RM'
+                        self.fold_stats[phase][key][1] += 1
+
+                if gs.is_terminal():
+                    break
+
+            # 4) Payoff al final de la mano (jugador 0), normalizado
+            payoff_p0 = gs.get_payoff(0)
+            util_norm_p0 = payoff_p0 / INITIAL_STACK
+            util_norm_p1 = -util_norm_p0
+
+            for infoset, a_idx, player, ph, _ in path:
+                util = util_norm_p0 if player == 0 else util_norm_p1
+                sum_utilities[infoset][a_idx] += util
+
+        # 5) Construir nodos y fijar regret_sum inicial según heurísticas
+        self.nodes[phase] = {}
+        for infoset, node_counts in count_actions.items():
+            if infoset not in self.nodes[phase]:
+                self.nodes[phase][infoset] = Node(infoset)
+            node = self.nodes[phase][infoset]
+
+            avg_util = np.zeros(node.num_actions)
+            for a in range(node.num_actions):
+                if node_counts[a] > 0:
+                    avg_util[a] = sum_utilities[infoset][a] / node_counts[a]
+                else:
+                    avg_util[a] = -1.0  # acción no tomada → utility muy baja
+
+            best_util = np.max(avg_util)
+            for a in range(node.num_actions):
+                node.regret_sum[a] = max(0.0, best_util - avg_util[a])
+
+            if node.regret_sum.sum() == 0:
+                node.regret_sum[:] = epsilon
+
+        # Si algún nodo quedó con regrets = 0, le damos epsilon pequeño
+        for infoset, node in self.nodes[phase].items():
+            if node.regret_sum.sum() == 0:
+                node.regret_sum[:] = epsilon
+
+        print(f"[Warm-up] Prefill completo en fase '{phase}'. Nodos iniciales: {len(self.nodes[phase])}")
+
+
+    def sample_trajectory(self, phase, km, iter_count, total_iters):
+        """
+        MCCFR por outcome sampling:
+          - Se muestrea una sola trayectoria (chance + acciones).
+          - En cada infoset, se muestrea UNA acción según la estrategia actual.
+          - Al llegar a terminal, calculamos payoff normalizado y retropropagamos regrets.
+        """
+        deck = create_deck()
+        random.shuffle(deck)
+        hole0, hole1 = deck[:2], deck[2:4]
+        community = self._deal(deck, phase)
+        gs = GameState(
+            hole0=hole0,
+            hole1=hole1,
+            community=community,
+            pot=10,
+            to_act=0,
+            history='',
+            phase=phase,
+            stack0=INITIAL_STACK,
+            stack1=INITIAL_STACK,
+            current_bet=0,
+            bet0=0,
+            bet1=0,
+            dealer=0,
+            deck=deck
+        )
+
+        trajectory = []
+        reach_prob = 1.0
+
+        while not gs.is_terminal():
+            # --- REEMPLAZO de get_bucket por hand_to_features_enhanced --- #
+            hole = gs.hole_cards[gs.to_act]
+            community_now = gs.community_cards
+            feats = hand_to_features_enhanced(
+                hole,
+                community_now,
+                pot=gs.pot,
+                history=gs.history,
+                to_act=gs.to_act
             )
-            utils_block.append(val)
+            bucket = km.predict(feats.reshape(1, -1))[0]
+            infoset = f"{phase}|{bucket}|{gs.history}"
+            if infoset not in self.nodes[phase]:
+                self.nodes[phase][infoset] = Node(infoset)
+            node = self.nodes[phase][infoset]
+            # ------------------------------------------------------------- #
+
+            eps = self.epsilon_map[phase] * (1 - iter_count / total_iters)
+            strat = node.get_strategy(reach_prob, epsilon=eps)
+
+            # Muestreamos una acción
+            a_idx = np.random.choice(range(NUM_ACTIONS), p=strat)
+            action_enum = Action(a_idx)
+
+            trajectory.append((infoset, a_idx, strat[a_idx], gs.to_act, phase, action_enum))
+
+            # Registrar fold-equity empírica si es RS o RM
+            if action_enum in (Action.RAISE_SMALL, Action.RAISE_MEDIUM):
+                key = 'RS' if action_enum == Action.RAISE_SMALL else 'RM'
+                self.fold_stats[phase][key][0] += 1
+
+            prev_hist = gs.history
+            gs = gs.apply_action(a_idx)
+
+            if action_enum in (Action.RAISE_SMALL, Action.RAISE_MEDIUM):
+                if 'f' in gs.history and gs.history.replace('|','').startswith(prev_hist.replace('|','') + 'r'):
+                    key = 'RS' if action_enum == Action.RAISE_SMALL else 'RM'
+                    self.fold_stats[phase][key][1] += 1
+
+            reach_prob *= strat[a_idx]
+
+        payoff_p0 = gs.get_payoff(0)
+        util_norm_p0 = payoff_p0 / INITIAL_STACK
+
+        # Retropropagar regrets
+        for infoset, a_idx, prob_a, player, ph, _ in reversed(trajectory):
+            node = self.nodes[phase][infoset]
+            util = util_norm_p0 if player == 0 else -util_norm_p0
+            node.regret_sum[a_idx] += util / (prob_a + 1e-12)
+
+        return util_norm_p0
+
+
+    def train_phase(self, phase, st_logger=print):
+        """
+        1) Clustering con features enriquecidos.
+        2) Warm-up con heurísticas mejoradas (equity real).
+        3) MCCFR outcome sampling con payoffs normalizados.
+        """
+        st_logger(f"--- Entrenando {phase} con MCCFR (payoff normalizado) ---")
+
+        n_samp  = self.samples_map[phase]
+        iters   = self.iterations_map[phase]
+        eps0    = self.epsilon_map[phase]
+
+        # 1) Clustering KMeans sobre hand_to_features_enhanced
+        samples = []
+        for _ in range(n_samp):
+            deck = create_deck()
+            random.shuffle(deck)
+            hole = deck[:2]
+            comm = self._deal(deck, phase)
+            feats = hand_to_features_enhanced(
+                hole,
+                comm,
+                pot=10,
+                history='',
+                to_act=0
+            )
+            samples.append(feats)
+        X = np.array(samples)
+        km = KMeans(n_clusters=max(2, n_samp // 10), random_state=42).fit(X)
+        self.kmeans_models[phase] = km
+
+        # 2) Warm-up
+        self.prefill_regrets(phase, km=km, num_sims=n_samp, epsilon=eps0)
+
+        # 3) MCCFR (outcome sampling)
+        utils_block = []
+        for i in range(1, iters + 1):
+            util = self.sample_trajectory(phase, km, i, iters)
+            utils_block.append(util)
 
             if i % 500 == 0:
                 mean = np.mean(utils_block)
                 std = np.std(utils_block)
                 total_pos = sum(
-                    np.sum(np.maximum(n.regret_sum, 0)) for n in self.nodes[phase].values()
+                    np.sum(np.maximum(n.regret_sum, 0))
+                    for n in self.nodes[phase].values()
                 )
                 avg_reg = total_pos / i
-                st_logger(f"Iter {i:5d}: mean={mean:.4f}, std={std:.4f}, avg_regret={avg_reg:.4f}")
+                st_logger(f"Iter {i:6d}: mean={mean:.4f}, std={std:.4f}, avg_regret={avg_reg:.4f}")
                 utils_block = []
 
+        # Mostrar fold-equity empírica
+        foldeos_RS = self.fold_stats[phase]['RS'][1]
+        tot_RS     = self.fold_stats[phase]['RS'][0]
+        foldeos_RM = self.fold_stats[phase]['RM'][1]
+        tot_RM     = self.fold_stats[phase]['RM'][0]
+        fe_RS = foldeos_RS / tot_RS if tot_RS > 0 else 0.0
+        fe_RM = foldeos_RM / tot_RM if tot_RM > 0 else 0.0
+        st_logger(f"[Fold-equity empírica en {phase}] RS: {fe_RS:.2%}, RM: {fe_RM:.2%}")
+
         total_pos = sum(
-            np.sum(np.maximum(n.regret_sum, 0)) for n in self.nodes[phase].values()
+            np.sum(np.maximum(n.regret_sum, 0))
+            for n in self.nodes[phase].values()
         )
-        avg_regret = total_pos / iters
-        st_logger(f"*** Average positive regret en {phase}: {avg_regret:.6f} ***")
+        avg_regret_final = total_pos / iters
+        st_logger(f"*** Average positive regret en {phase}: {avg_regret_final:.6f} ***")

@@ -1,4 +1,4 @@
-# poker_env.py
+#poker_env.py
 
 import random
 import numpy as np
@@ -37,19 +37,9 @@ def card_list_to_treys(cards):
     return [Card.new(rank_suit_to_str(c)) for c in cards]
 
 def evaluate_hand(hole_cards, community_cards):
-    """
-    Convertimos hole_cards y community_cards a Treys, luego evaluamos.
-    Si Treys arroja KeyError por duplicado, devolvemos un valor alto neutral.
-    """
     board = card_list_to_treys(community_cards)
-    hand  = card_list_to_treys(hole_cards)
-    try:
-        return _evaluator.evaluate(board, hand)
-    except KeyError:
-        # Habitualmente esto significa que hay alguna carta repetida en board+hand.
-        # Devolvemos el peor score posible para que no se considere mano ganadora.
-        # 7462 es el "rank" máximo de Treys (carta alta peor).
-        return 7462
+    hand = card_list_to_treys(hole_cards)
+    return _evaluator.evaluate(board, hand)
 
 def get_winner(gs):
     s0 = evaluate_hand(gs.hole_cards[0], gs.community_cards)
@@ -81,22 +71,17 @@ class GameState:
                  stack0=INITIAL_STACK, stack1=INITIAL_STACK,
                  current_bet=0, bet0=0, bet1=0,
                  dealer=0, deck=None):
-        self.hole_cards      = {0: hole0,    1: hole1}
+        self.hole_cards = {0: hole0, 1: hole1}
         self.community_cards = community or []
-        self.pot             = pot
-        self.to_act          = to_act
-        self.history         = history
-        self.phase           = phase
-
-        # Aquí añadimos initial_stack para que _split_side_pots_if_all_in()
-        # no falle cuando lo invoque.
+        self.pot = pot
+        self.to_act = to_act
+        self.history = history
+        self.phase = phase
         self.stack = {0: stack0, 1: stack1}
-        self.initial_stack = stack0
-
         self.current_bet = current_bet
-        self.bet         = {0: bet0, 1: bet1}
-        self.dealer      = dealer
-        self.deck        = deck
+        self.bet = {0: bet0, 1: bet1}
+        self.dealer = dealer
+        self.deck = deck
 
     def is_terminal(self):
         if 'f' in self.history:
@@ -184,21 +169,13 @@ class GameState:
             self.current_bet = total_bet
             self.history += 'r'
 
-        # Si tu versión tiene _split_side_pots_if_all_in(), ya puede usar initial_stack sin fallar.
-        try:
-            self._split_side_pots_if_all_in()
-        except AttributeError:
-            pass
-
         self.to_act = 1 - self.to_act
         if self._is_betting_round_complete():
             self._advance_phase()
         return self
 
-    # … aquí va el resto de métodos de GameState, incluido _split_side_pots_if_all_in() si lo tenías …
-
 def get_bucket(kmeans_model, hole_cards, community_cards,
                bet_size, history='', to_act=0, pot=0):
     feats = hand_to_features(hole_cards, community_cards,
-                             bet_size, history, to_act, pot)
+                              bet_size, history, to_act, pot)
     return kmeans_model.predict(feats.reshape(1, -1))[0]
