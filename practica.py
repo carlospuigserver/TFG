@@ -8,7 +8,7 @@ from enum import Enum
 
 from poker_env import Action, NUM_ACTIONS
 from bucket_features import hand_to_features_enhanced  # Importamos la función mejorada
-# Nota: ya no usamos get_bucket de poker_env, usamos directamente hand_to_features_enhanced + KMeans
+from bucket_features import real_equity_estimate       # Importamos la función de equity
 
 class PokerGame:
     def __init__(self, initial_stack=1000, small_blind=10, big_blind=20):
@@ -407,9 +407,9 @@ class PokerGame:
                 print("\nRiver:", self.community_cards[4])
         self.print_chip_counts()
 
-    # --- Decide acción bot basado en modelo entrenado ---
+    # --- Decide acción bot basado en modelo entrenado (con cap de tamaño según equity) ---
     def bot_decide_action(self, trainer):
-        # Map para convertir string “AH” → (14,1), etc.
+        # Map para convertir "As" → (14,1), etc.
         rank_map = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
                     '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11,
                     'Q': 12, 'K': 13, 'A': 14}
@@ -427,16 +427,23 @@ class PokerGame:
         nodes = trainer.nodes.get(phase, {})
 
         if km is None or nodes is None:
-            # Si no hay modelo, elige acción aleatoria
+            # Si no hay modelo entrenado, elige acción aleatoria
             action = random.choice(list(Action))
             raise_amount = None
             return action, raise_amount
 
-        # Convertir las cartas de bot y la comunidad a tupla (rank, suit)
+        # Convertir las cartas del bot y la comunidad a tupla (rank, suit)
         hole_cards_numeric = convert_cards(self.bot_hole)
-        community_numeric = convert_cards(self.community_cards[: max(0, self.street_index * 3) ])
+        if self.street_index == 0:
+            community_numeric = []
+        elif self.street_index == 1:
+            community_numeric = convert_cards(self.community_cards[:3])
+        elif self.street_index == 2:
+            community_numeric = convert_cards(self.community_cards[:4])
+        else:
+            community_numeric = convert_cards(self.community_cards[:5])
 
-        # Calcular features con hand_to_features_enhanced
+        # Calcular features para bucketizar
         feats = hand_to_features_enhanced(
             hole_cards_numeric,
             community_numeric,
@@ -455,15 +462,54 @@ class PokerGame:
         action_idx = np.random.choice(range(NUM_ACTIONS), p=strat)
         action = Action(action_idx)
 
+        # Determinar raise_amount según convención
         if action == Action.RAISE_SMALL:
             raise_amount = max(int(self.pot * 0.5), 1)
         elif action == Action.RAISE_MEDIUM:
             raise_amount = max(int(self.pot * 1.0), 1)
         elif action == Action.RAISE_LARGE:
-            # ALL-IN: el bot apuesta todo lo que le queda
+            # ALL-IN puro: apostará todo lo que le queda
             raise_amount = self.bot_chips
         else:
             raise_amount = None
+
+        # ======== BLOQUE NUEVO: CAPEAR raise_large SEGÚN equity del bot ========
+        if action == Action.RAISE_LARGE and raise_amount is not None:
+            # 1) Calcular equity real de la mano del bot vs. rival aleatorio
+            eq_bot = real_equity_estimate(
+                hole_cards_numeric,
+                community_numeric,
+                num_sim=500  # ajustable (más sims → mayor precisión, pero tarde)
+            )
+
+            # 2) Obtener tamaño del bote antes de apostar
+            pot_before = self.pot
+
+            # 3) Definir umbrales de equity para cap:
+            #    - eq_bot < 0.40 → no all-in (CALL)
+            #    - 0.40 ≤ eq_bot < 0.50 → RAISE_MEDIUM
+            #    - 0.50 ≤ eq_bot < 0.60 → RAISE_MEDIUM (intermedio)
+            #    - eq_bot ≥ 0.60 → ALL-IN completo
+            if eq_bot < 0.40:
+                # Demasiado baja equity: hacemos CALL en vez de all-in
+                action = Action.CALL
+                raise_amount = None
+
+            elif eq_bot < 0.50:
+                # Equity moderada: capeo a raise mediano (≈1× bote)
+                action = Action.RAISE_MEDIUM
+                raise_amount = max(int(pot_before * 1.0), 1)
+
+            elif eq_bot < 0.60:
+                # Equity decente pero no alta: capeo también a raise mediano
+                action = Action.RAISE_MEDIUM
+                raise_amount = max(int(pot_before * 1.0), 1)
+
+            else:
+                # Equity alta (≥0.60): permitimos full all-in
+                action = Action.RAISE_LARGE
+                raise_amount = self.bot_chips
+        # ======== FIN DEL BLOQUE DE CAPEO ========
 
         return action, raise_amount
 
