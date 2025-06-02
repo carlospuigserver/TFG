@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Partida - Nash Poker</title>
   <style>
-    /* Body con la mesa como fondo */
+    /* --------------------------------------------------
+       Fondo de la ventana: la mesa de póker (mesa.png)
+       -------------------------------------------------- */
     body {
       margin: 0;
       padding: 0;
@@ -17,32 +19,40 @@
       font-family: Arial, sans-serif;
     }
 
-    /* Contenedor principal */
+    /* --------------------------------------------------
+       Contenedor principal (#gameContainer)
+       con un ligero semitransparencia negra.
+       -------------------------------------------------- */
     #gameContainer {
       width: 90%;
-      max-width: 800px;
-      min-height: 600px;
-      background: rgba(0, 0, 0, 0.5); /* ligera superposición negra */
+      max-width: 900px;
+      min-height: 650px;
+      background: rgba(0, 0, 0, 0.5);
       border: 2px solid #222;
       border-radius: 8px;
       padding: 1rem;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 1rem;
       color: white;
       position: relative;
     }
 
-    /* Barra de estado al tope (Pot y stacks) */
+    /* --------------------------------------------------
+       Barra de estado (Pot y stacks) en la parte superior
+       -------------------------------------------------- */
     #statusBar {
       display: flex;
       justify-content: space-around;
       width: 100%;
       font-size: 1.1rem;
+      margin-bottom: 0.5rem;
     }
 
-    /* Contenedor para cartas comunitarias: centrado horizontal */
+    /* --------------------------------------------------
+       Contenedor para las cartas comunitarias (flop/turn/river)
+       Posicionado en la “zona media-alta” de la mesa.
+       -------------------------------------------------- */
     #communityCards {
       position: absolute;
       top: 30%;
@@ -52,7 +62,9 @@
       gap: 0.5rem;
     }
 
-    /* Contenedor para las cartas del jugador: abajo-centro */
+    /* --------------------------------------------------
+       Contenedor para las cartas del jugador (abajo-centro)
+       -------------------------------------------------- */
     #playerCards {
       position: absolute;
       bottom: 10%;
@@ -62,7 +74,11 @@
       gap: 0.5rem;
     }
 
-    /* (Opcional) Cartas del bot: arriba-centro, ocultas hasta el showdown */
+    /* --------------------------------------------------
+       Contenedor para las cartas del bot (arriba-centro)
+       - Inicialmente muestra dos cartas boca abajo.
+       - Al final de la mano se revelan.
+       -------------------------------------------------- */
     #botCards {
       position: absolute;
       top: 10%;
@@ -70,10 +86,11 @@
       transform: translateX(-50%);
       display: flex;
       gap: 0.5rem;
-      visibility: hidden;
     }
 
-    /* Botones y input para acción, mostrados sobre la parte inferior derecha */
+    /* --------------------------------------------------
+       Botones de acción + input de raise (abajo-derecha)
+       -------------------------------------------------- */
     #actionsContainer {
       position: absolute;
       bottom: 10%;
@@ -100,10 +117,13 @@
       color: #fff;
     }
 
-    /* Mensaje de estado (debajo de la mesa) */
+    /* --------------------------------------------------
+       Mensajes de texto (jugadas del bot, fin de mano, etc.)
+       Posicionado justo encima del borde inferior.
+       -------------------------------------------------- */
     #messageContainer {
       position: absolute;
-      bottom: 0.5%;
+      bottom: 2%;
       left: 50%;
       transform: translateX(-50%);
       font-size: 1.2rem;
@@ -115,33 +135,33 @@
 </head>
 <body>
   <div id="gameContainer">
-    <!-- Status Bar -->
+    <!-- 1) Barra de estado: Pot / Fichas Jugador / Fichas Bot -->
     <div id="statusBar">
       <div>Pot: <span id="pot">0</span></div>
       <div>Tú: <span id="playerChips">0</span> fichas</div>
       <div>Bot: <span id="botChips">0</span> fichas</div>
     </div>
 
-    <!-- Cartas del Bot (ocultas hasta showdown) -->
+    <!-- 2) Cartas del bot (boca abajo al inicio) -->
     <div id="botCards"></div>
 
-    <!-- Cartas Comunitarias -->
+    <!-- 3) Cartas comunitarias -->
     <div id="communityCards"></div>
 
-    <!-- Cartas del Jugador -->
+    <!-- 4) Cartas del jugador -->
     <div id="playerCards"></div>
 
-    <!-- Botones de acción + input para Raise -->
+    <!-- 5) Botones de acción + input Raise -->
     <div id="actionsContainer"></div>
 
-    <!-- Mensajes de texto (jugadas del bot, fin de mano, etc.) -->
+    <!-- 6) Mensajes de estado (acciones del bot, fin de mano...) -->
     <div id="messageContainer"></div>
   </div>
 
-  <!-- Cargamos game.js que contiene toda la lógica JS -->
+  <!-- Importamos game.js (que controla toda la lógica) -->
   <script src="game.js"></script>
   <script>
-    // Arrancamos la partida en cuanto cargue esta página
+    // Arrancamos la partida en cuanto cargue esta página:
     document.addEventListener("DOMContentLoaded", () => {
       iniciarPartida();
     });
