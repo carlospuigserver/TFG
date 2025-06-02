@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nash Poker</title>
+  <link rel="stylesheet" href="portada.css" />
+  <link rel="stylesheet" href="loader.css" />
+  <style>
+    .pantalla {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .loader-wrapper {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- Pantalla de portada -->
+  <div class="pantalla" id="portada">
+    <div class="main">
+      <div class="d1"></div>
+      <div class="d2"></div>
+      <div class="d3">
+        <div class="logo-container">
+          <img src="Portada.png" alt="Logo Nash Poker" />
+        </div>
+      </div>
+      <div class="d4"></div>
+    </div>
+  </div>
+
+  <!-- Pantalla de loader -->
+  <div class="pantalla hidden" id="loader">
+    <div class="loader-wrapper">
+      <div class="loader">
+        <div class="load1"></div>
+        <div class="load2"></div>
+        <div class="load3"></div>
+        <div class="load4"></div>
+        <div class="load5"></div>
+        <div class="load6"></div>
+        <div class="load7"></div>
+        <div class="load8"></div>
+        <div class="load9"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Mostrar loader después de 12 segundos
+    setTimeout(() => {
+      document.getElementById('portada').classList.add('hidden');
+      document.getElementById('loader').classList.remove('hidden');
+    }, 12000);
+
+    // Redireccionar después del loader (6 segundos después = 18s total)
+    setTimeout(() => {
+      window.location.href = "home.html"; // Cambia a tu página final
+    }, 18000);
+  </script>
+</body>
+</html>
