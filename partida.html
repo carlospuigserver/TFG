@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Partida - Nash Poker</title>
+  <style>
+    /* Body con la mesa como fondo */
+    body {
+      margin: 0;
+      padding: 0;
+      background: url("mesa.png") no-repeat center center / cover;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: Arial, sans-serif;
+    }
+
+    /* Contenedor principal */
+    #gameContainer {
+      width: 90%;
+      max-width: 800px;
+      min-height: 600px;
+      background: rgba(0, 0, 0, 0.5); /* ligera superposición negra */
+      border: 2px solid #222;
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      color: white;
+      position: relative;
+    }
+
+    /* Barra de estado al tope (Pot y stacks) */
+    #statusBar {
+      display: flex;
+      justify-content: space-around;
+      width: 100%;
+      font-size: 1.1rem;
+    }
+
+    /* Contenedor para cartas comunitarias: centrado horizontal */
+    #communityCards {
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    /* Contenedor para las cartas del jugador: abajo-centro */
+    #playerCards {
+      position: absolute;
+      bottom: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    /* (Opcional) Cartas del bot: arriba-centro, ocultas hasta el showdown */
+    #botCards {
+      position: absolute;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 0.5rem;
+      visibility: hidden;
+    }
+
+    /* Botones y input para acción, mostrados sobre la parte inferior derecha */
+    #actionsContainer {
+      position: absolute;
+      bottom: 10%;
+      right: 5%;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    #actionsContainer button {
+      background: #006600;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.5rem 0.8rem;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    #actionsContainer input[type="number"] {
+      width: 60px;
+      padding: 0.3rem;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #222;
+      color: #fff;
+    }
+
+    /* Mensaje de estado (debajo de la mesa) */
+    #messageContainer {
+      position: absolute;
+      bottom: 0.5%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 1.2rem;
+      font-weight: bold;
+      min-height: 1.5rem;
+      text-shadow: 0 0 4px black;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <!-- Status Bar -->
+    <div id="statusBar">
+      <div>Pot: <span id="pot">0</span></div>
+      <div>Tú: <span id="playerChips">0</span> fichas</div>
+      <div>Bot: <span id="botChips">0</span> fichas</div>
+    </div>
+
+    <!-- Cartas del Bot (ocultas hasta showdown) -->
+    <div id="botCards"></div>
+
+    <!-- Cartas Comunitarias -->
+    <div id="communityCards"></div>
+
+    <!-- Cartas del Jugador -->
+    <div id="playerCards"></div>
+
+    <!-- Botones de acción + input para Raise -->
+    <div id="actionsContainer"></div>
+
+    <!-- Mensajes de texto (jugadas del bot, fin de mano, etc.) -->
+    <div id="messageContainer"></div>
+  </div>
+
+  <!-- Cargamos game.js que contiene toda la lógica JS -->
+  <script src="game.js"></script>
+  <script>
+    // Arrancamos la partida en cuanto cargue esta página
+    document.addEventListener("DOMContentLoaded", () => {
+      iniciarPartida();
+    });
+  </script>
+</body>
+</html>
