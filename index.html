@@ -62,16 +62,17 @@
   </div>
 
   <script>
-    // Mostrar loader después de 12 segundos
+    // 1) Después de 7.06 segundos, ocultamos "portada" y mostramos "loader"
     setTimeout(() => {
       document.getElementById('portada').classList.add('hidden');
       document.getElementById('loader').classList.remove('hidden');
-    }, 12000);
 
-    // Redireccionar después del loader (6 segundos después = 18s total)
-    setTimeout(() => {
-      window.location.href = "home.html"; // Cambia a tu página final
-    }, 18000);
+      // 2) 5 segundos después de que aparezca el loader, cargamos inicial.html
+      setTimeout(() => {
+        window.location.href = "inicial.html";
+      }, 5000);
+
+    }, 7060);
   </script>
 </body>
 </html>
