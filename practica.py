@@ -490,23 +490,23 @@ class PokerGame:
             #    - 0.40 ≤ eq_bot < 0.50 → RAISE_MEDIUM
             #    - 0.50 ≤ eq_bot < 0.60 → RAISE_MEDIUM (intermedio)
             #    - eq_bot ≥ 0.60 → ALL-IN completo
-            if eq_bot < 0.40:
+            if eq_bot < 0.50:
                 # Demasiado baja equity: hacemos CALL en vez de all-in
                 action = Action.CALL
                 raise_amount = None
 
-            elif eq_bot < 0.50:
+            elif eq_bot < 0.60:
                 # Equity moderada: capeo a raise mediano (≈1× bote)
-                action = Action.RAISE_MEDIUM
+                action = Action.RAISE_SMALL
                 raise_amount = max(int(pot_before * 1.0), 1)
 
-            elif eq_bot < 0.70:
+            elif eq_bot < 0.80:
                 # Equity decente pero no alta: capeo también a raise mediano
                 action = Action.RAISE_MEDIUM
                 raise_amount = max(int(pot_before * 1.0), 1)
 
             else:
-                # Equity alta (≥0.60): permitimos full all-in
+                # Equity alta (≥0.80): permitimos full all-in
                 action = Action.RAISE_LARGE
                 raise_amount = self.bot_chips
         # ======== FIN DEL BLOQUE DE CAPEO ========
