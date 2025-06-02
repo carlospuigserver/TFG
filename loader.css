@@ -1,0 +1,82 @@
+/* Fondo y centrado de toda la pantalla */
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  background-color: #2f2f2f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* From Uiverse.io by Praashoo7 */
+.loader {
+  display: flex;
+  align-items: center;
+  margin-left: -0.65em;
+  position: relative;
+}
+
+.load1,
+.load2,
+.load3,
+.load4,
+.load5,
+.load6,
+.load7,
+.load8,
+.load9 {
+  position: absolute;
+  margin-right: 1em;
+  height: 2.4em;
+  width: 2.4em;
+  border-radius: 5px;
+  background-color: white;
+  box-shadow: 0 1px 7px rgba(0,0,0,0.3);
+}
+
+.load2 { animation: 2s flow2 infinite; }
+.load3 { animation: 2s flow3 infinite; }
+.load4 { animation: 2s flow4 infinite; }
+.load5 { animation: 2s flow5 infinite; }
+.load6 { animation: 6s flow6 infinite; }
+.load7 { animation: 6s flow7 infinite; }
+.load8 { animation: 6s flow8 infinite; }
+.load9 { animation: 6s flow9 infinite; }
+
+@keyframes flow2 {
+  50% { transform: translateX(6em); }
+  100% { transform: translateX(0em); }
+}
+@keyframes flow3 {
+  50% { transform: translateX(-6em); }
+  100% { transform: translateX(0em); }
+}
+@keyframes flow4 {
+  50% { transform: translateY(6em); }
+  100% { transform: translateY(0em); }
+}
+@keyframes flow5 {
+  50% { transform: translateY(-6em); }
+  100% { transform: translateY(0em); }
+}
+@keyframes flow6 {
+  30% { transform: translateX(60%); }
+  60% { transform: translateX(6em) translateY(-6em); }
+  100% { transform: translateX(0em) translateY(0em); }
+}
+@keyframes flow7 {
+  30% { transform: translateX(-6em); }
+  60% { transform: translateX(-6em) translateY(6em); }
+  100% { transform: translateX(0em) translateY(0em); }
+}
+@keyframes flow8 {
+  30% { transform: translateY(6em); }
+  60% { transform: translateY(6em) translateX(6em); }
+  100% { transform: translateX(0em) translateY(0em); }
+}
+@keyframes flow9 {
+  30% { transform: translateY(-6em); }
+  60% { transform: translateY(-6em) translateX(-6em); }
+  100% { transform: translateX(0em) translateY(0em); }
+}
