@@ -1,33 +1,28 @@
-# app.py
-
+# ---------------------------------
+# app.py (solo mostramos las rutas)
+# ---------------------------------
 from flask import Flask, request, jsonify, render_template
 import pickle
 
 from practica import PokerGame
 from poker_env import Action
 
-# -----------------------------------------------------
-# Configuramos Flask para servir archivos estáticos
-# directamente desde la carpeta raíz y buscar plantillas
-# también en la carpeta raíz.
-# -----------------------------------------------------
 app = Flask(
     __name__,
-    static_folder='.',       # Sirve archivos estáticos desde el directorio actual
-    static_url_path='',      # Sin prefijo; p. ej. /inicial.css servirá ./inicial.css
-    template_folder='.'      # Las plantillas (render_template) se buscan en el directorio actual
+    static_folder='.',
+    static_url_path='',
+    template_folder='.'
 )
 
-# Cargamos el modelo CFR (pickle) una sola vez al iniciar la app
+# Cargamos el trainer CFR al comienzo
 with open("cfr_entreno.pkl", "rb") as f:
     trainer = pickle.load(f)
 
-# Almacén en memoria de partidas activas por session_id
+# Almacenaremos las partidas en memoria, indexadas por session_id
 games = {}
 
 @app.route("/")
 def index():
-    # Al entrar a / devolvemos index.html (portada + loader + redirección)
     return render_template("index.html")
 
 @app.route("/api/new_hand", methods=["POST"])
@@ -37,13 +32,15 @@ def new_hand():
     if not sid:
         return jsonify({"error": "Falta session_id"}), 400
 
-    # Creamos una nueva partida y guardamos el objeto PokerGame en el diccionario
     game = PokerGame()
-    game.dealer = "player"  # El jugador es dealer la primera vez
+    game.dealer = "player"    # Empezamos con el jugador como dealer
     if not game.start_hand():
         return jsonify({"error": "No hay fichas para blinds"}), 400
 
     games[sid] = game
+
+    # Determinar quién actúa primero en esta mano
+    first_actor = game.get_first_actor()
 
     return jsonify({
         "player_hole": game.player_hole,
@@ -53,7 +50,9 @@ def new_hand():
         "bot_chips": game.bot_chips,
         "current_bet": game.current_bet,
         "street_index": game.street_index,
-        "history": game.history
+        "history": game.history,
+        "dealer": game.dealer,           # le indicamos al front-end quién es dealer
+        "to_act": first_actor            # y quién comienza la ronda
     })
 
 @app.route("/api/player_action", methods=["POST"])
@@ -68,7 +67,7 @@ def player_action():
 
     game = games[sid]
 
-    # Convertimos la cadena recibida a la enumeración Action correspondiente
+    # Convertimos la cadena a la enumeración Action
     if action_str == "fold":
         act = Action.FOLD
     elif action_str == "call":
@@ -81,29 +80,37 @@ def player_action():
     # 1) Aplica la acción del jugador
     termino = game.apply_action("player", act, raise_amt)
     if termino:
-        # El jugador se retiró (fold) o venció un all-in
+        # El jugador se plegó o el all-in terminó la mano
         return jsonify({
             "result": "player_ended",
             "player_chips": game.player_chips,
             "bot_chips": game.bot_chips,
-            "pot": game.pot
+            "pot": game.pot,
+            "dealer": game.dealer,
+            # En este caso final de mano, podemos revelar las hole cards del bot
+            "bot_hole": game.bot_hole
         })
 
-    # 2) Ahora toca la acción del bot (usando el trainer cargado)
+    # 2) Toca al bot (usando el trainer CFR)
     bot_act, bot_raise_amt = game.bot_decide_action(trainer)
     termino_bot = game.apply_action("bot", bot_act, bot_raise_amt)
     if termino_bot:
-        # El bot se retiró o ganó con all-in
+        # El bot se plegó o ganó con all-in
         return jsonify({
             "result": "bot_ended",
             "bot_action": bot_act.name,
             "bot_raise_amount": bot_raise_amt,
             "player_chips": game.player_chips,
             "bot_chips": game.bot_chips,
-            "pot": game.pot
+            "pot": game.pot,
+            "dealer": game.dealer,
+            "bot_hole": game.bot_hole
         })
 
-    # 3) La mano continúa; devolvemos estado parcial, incluidas las cartas comunitarias
+    # 3) La mano continúa: devolvemos estado parcial + cartas comunitarias si pasamos a flop/turn/river
+    #    También informamos “dealer” y “to_act” (quién actúa a continuación)
+    next_actor = game.get_first_actor()
+
     response = {
         "player_action": action_str,
         "bot_action": bot_act.name,
@@ -113,10 +120,12 @@ def player_action():
         "bot_chips": game.bot_chips,
         "current_bet": game.current_bet,
         "street_index": game.street_index,
-        "history": game.history
+        "history": game.history,
+        "dealer": game.dealer,
+        "to_act": next_actor
     }
 
-    # Según en qué calle estemos, incluimos las cartas comunitarias
+    # Si estamos en flop/turn/river, incluimos las cartas comunitarias correspondientes
     if game.street_index == 1:
         response["community"] = game.community_cards[:3]
     elif game.street_index == 2:
@@ -129,5 +138,4 @@ def player_action():
     return jsonify(response)
 
 if __name__ == "__main__":
-    # Ejecutamos el servidor en 0.0.0.0:5000 (visible en localhost)
     app.run(host="0.0.0.0", port=5000, debug=True)

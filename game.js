@@ -1,20 +1,21 @@
 // ----------------------------------------------------------
 // game.js
-// Lógica de la partida (cliente-side). Comunica con Flask
+// Control de la partida en el cliente. Se comunica con Flask.
 // ----------------------------------------------------------
 
-// Generamos un session_id único para esta partida
+// Generamos un session_id único para cada jugador
 const sessionId = crypto.randomUUID();
 
-// Referencias globales a contenedores en el DOM
+// Referencias globales a los elementos del DOM
 let potDisplay, playerChipsDisplay, botChipsDisplay;
+let dealerDisplay, toActDisplay;
 let communityContainer, playerCardsContainer, botCardsContainer;
-let actionsContainer, messageContainer;
+let actionsContainer;
+let botMessageContainer, playerMessageContainer;
 
 /**
  * Inicia la partida: llama a /api/new_hand,  
- * ajusta el DOM y dibuja las cartas iniciales (hole cards del jugador
- * y cartas boca abajo para el bot).
+ * configura el DOM y dibuja las cartas iniciales.
  */
 function iniciarPartida() {
   fetch("/api/new_hand", {
@@ -29,30 +30,36 @@ function iniciarPartida() {
         return;
       }
 
-      // 1) Referencias a elementos del DOM (para actualizar rápidamente)
+      // 1) Obtenemos referencias a todos los elementos del DOM
       potDisplay = document.getElementById("pot");
       playerChipsDisplay = document.getElementById("playerChips");
       botChipsDisplay = document.getElementById("botChips");
+      dealerDisplay = document.getElementById("dealerDisplay");
+      toActDisplay = document.getElementById("toActDisplay");
       communityContainer = document.getElementById("communityCards");
       playerCardsContainer = document.getElementById("playerCards");
       botCardsContainer = document.getElementById("botCards");
       actionsContainer = document.getElementById("actionsContainer");
-      messageContainer = document.getElementById("messageContainer");
+      botMessageContainer = document.getElementById("botMessage");
+      playerMessageContainer = document.getElementById("playerMessage");
 
-      // 2) Actualizar pot y stacks
+      // 2) Actualizamos pot, stacks, dealer y turno inicial
       actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
+      dealerDisplay.textContent = formateaNombre(data.dealer);
+      toActDisplay.textContent = formateaNombre(data.to_act);
 
-      // 3) Mostrar hole cards del jugador (data.player_hole es array de strings, p.ej. ["AH", "9D"])
+      // 3) Pintamos las hole cards del jugador
       mostrarHoleCards(data.player_hole);
 
-      // 4) Mostrar las cartas boca abajo del bot (2 cartas con card_back.png)
+      // 4) Pintamos dos cartas boca abajo para el bot
       mostrarBotCardsBack();
 
-      // 5) Habilitar los botones de acción (Fold / Call / Raise + input)
-      habilitarBotonesDeAccion();
+      // 5) Limpiamos los mensajes (jugador y bot)
+      botMessageContainer.textContent = "";
+      playerMessageContainer.textContent = "";
 
-      // 6) Limpiar mensajes previos
-      messageContainer.textContent = "";
+      // 6) Habilitamos los botones de acción
+      habilitarBotonesDeAccion();
     })
     .catch(err => {
       console.error("Error en new_hand:", err);
@@ -61,11 +68,9 @@ function iniciarPartida() {
 }
 
 /**
- * Muestra las hole cards del jugador.  
- * hole: ["AH", "9D"] etc.
+ * Dibuja las hole cards del jugador (p. ej. ["AH","9D"]).
  */
 function mostrarHoleCards(hole) {
-  // Limpiar contenedor
   playerCardsContainer.innerHTML = "";
   hole.forEach(cardCode => {
     const img = document.createElement("img");
@@ -78,9 +83,7 @@ function mostrarHoleCards(hole) {
 }
 
 /**
- * Dibuja dos cartas boca abajo para el bot (card_back.png)
- * al inicio de la mano.  
- * (Más tarde, en el showdown, las reemplazaremos por las cartas reales.)
+ * Muestra dos cartas boca abajo (card_back.png) para el bot.
  */
 function mostrarBotCardsBack() {
   botCardsContainer.innerHTML = "";
@@ -90,14 +93,14 @@ function mostrarBotCardsBack() {
     img.alt = "Bot Card Back";
     img.width = 80;
     img.height = 120;
+    // Con CSS ya están rotadas 180° para apuntar hacia abajo
     botCardsContainer.appendChild(img);
   }
 }
 
 /**
- * Revela (muestra) las hole cards reales del bot reemplazando las
- * cartas boca abajo.  
- * recibe un array: ["KC", "2H"], etc.
+ * Revela las hole cards reales del bot
+ * (reemplaza las cartas “boca abajo” por las suyas).
  */
 function mostrarBotHoleCards(botHole) {
   botCardsContainer.innerHTML = "";
@@ -107,12 +110,14 @@ function mostrarBotHoleCards(botHole) {
     img.alt = cardCode;
     img.width = 80;
     img.height = 120;
+    // Queremos mostrarlas “derechas” (sin rotación), así que:
+    img.style.transform = "none";
     botCardsContainer.appendChild(img);
   });
 }
 
 /**
- * Actualiza los displays de pot, fichas del jugador y del bot.
+ * Actualiza los displays de pot, fichas del jugador y fichas del bot.
  */
 function actualizarPotYStacks(pot, playerChips, botChips) {
   potDisplay.textContent = pot;
@@ -121,8 +126,17 @@ function actualizarPotYStacks(pot, playerChips, botChips) {
 }
 
 /**
- * Dibuja o actualiza las cartas comunitarias en la mesa.
- * community: [] (preflop), 3 (flop), 4 (flop+turn) o 5 (flop+turn+river)
+ * Transforma "player"/"bot" en “Tú” o “Bot” (para mostrarlo bonito).
+ */
+function formateaNombre(quien) {
+  if (quien === "player") return "Tú";
+  if (quien === "bot") return "Bot";
+  return quien;
+}
+
+/**
+ * Dibuja las cartas comunitarias en el centro de la mesa.  
+ * community: array de códigos, p. ej. ["5H","TD","2C","JH"].
  */
 function pintarBoard(community) {
   communityContainer.innerHTML = "";
@@ -132,29 +146,36 @@ function pintarBoard(community) {
     img.alt = cardCode;
     img.width = 80;
     img.height = 120;
+    img.style.transform = "none";
     communityContainer.appendChild(img);
   });
 }
 
 /**
- * Crea y habilita los botones Fold, Call y Raise (con un input numérico).
+ * Crea los botones Fold, Call, el input + botón Raise.
  */
 function habilitarBotonesDeAccion() {
   actionsContainer.innerHTML = "";
 
-  // Fold
+  // --- Fold ---
   const btnFold = document.createElement("button");
   btnFold.textContent = "Fold";
-  btnFold.onclick = () => enviarAccionJugador("fold", null);
+  btnFold.onclick = () => {
+    playerMessageContainer.textContent = "Tú te retiras (Fold).";
+    enviarAccionJugador("fold", null);
+  };
   actionsContainer.appendChild(btnFold);
 
-  // Call
+  // --- Call ---
   const btnCall = document.createElement("button");
   btnCall.textContent = "Call";
-  btnCall.onclick = () => enviarAccionJugador("call", null);
+  btnCall.onclick = () => {
+    playerMessageContainer.textContent = "Tú haces Call.";
+    enviarAccionJugador("call", null);
+  };
   actionsContainer.appendChild(btnCall);
 
-  // Input para Raise
+  // --- Input para Raise ---
   const inputRaise = document.createElement("input");
   inputRaise.type = "number";
   inputRaise.id = "raiseInput";
@@ -162,7 +183,7 @@ function habilitarBotonesDeAccion() {
   inputRaise.min = "1";
   actionsContainer.appendChild(inputRaise);
 
-  // Raise
+  // --- Raise ---
   const btnRaise = document.createElement("button");
   btnRaise.textContent = "Raise";
   btnRaise.onclick = () => {
@@ -171,20 +192,18 @@ function habilitarBotonesDeAccion() {
       alert("Ingresa un monto válido (>= 1).");
       return;
     }
+    playerMessageContainer.textContent = `Tú haces Raise de ${valor}.`;
     enviarAccionJugador("raise", valor);
   };
   actionsContainer.appendChild(btnRaise);
 }
 
 /**
- * Envía la acción del jugador al servidor Flask y procesa la respuesta.
- * action: "fold" | "call" | "raise"
- * raiseAmount: número | null
+ * Envía la acción del jugador al servidor y procesa la respuesta.  
+ * action: "fold" | "call" | "raise"  
+ * raiseAmount: número (o null).
  */
 function enviarAccionJugador(action, raiseAmount) {
-  // Limpiar cualquier mensaje previo
-  messageContainer.textContent = "";
-
   fetch("/api/player_action", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -201,42 +220,49 @@ function enviarAccionJugador(action, raiseAmount) {
         return;
       }
 
-      // Si la mano terminó con el jugador fold o con all-in resultante
+      // ---------- Caso A: la mano terminó ----------
       if (data.result === "player_ended") {
-        // Mostramos mensaje de “Ganaste” y revelamos cartas del bot si vienen
-        messageContainer.textContent = "¡Ganas! El bot se retiró.";
-        if (data.bot_hole) {
-          mostrarBotHoleCards(data.bot_hole);
-        }
-        accionesFinalMano();
-        return;
-      }
-      if (data.result === "bot_ended") {
-        // El bot ganó (fold o all-in), revelamos cartas del bot y mensaje
-        messageContainer.textContent = "El bot gana la mano.";
+        botMessageContainer.textContent = "El bot se retira. ¡Tú ganas!";
         if (data.bot_hole) {
           mostrarBotHoleCards(data.bot_hole);
         }
         actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
+        dealerDisplay.textContent = formateaNombre(data.dealer);
+        toActDisplay.textContent = "–";
+        accionesFinalMano();
+        return;
+      }
+      if (data.result === "bot_ended") {
+        botMessageContainer.textContent = "El bot gana la mano.";
+        if (data.bot_hole) {
+          mostrarBotHoleCards(data.bot_hole);
+        }
+        actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
+        dealerDisplay.textContent = formateaNombre(data.dealer);
+        toActDisplay.textContent = "–";
         accionesFinalMano();
         return;
       }
 
-      // ---------- Mano continúa ----------
-      // 1) Actualizar pot y stacks
-      actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
-
-      // 2) Pintar cartas comunitarias (si hay alguna nueva)
-      if (data.community) {
+      // ---------- Caso B: la mano continúa ----------
+      // 1) Pintar comunidad si hay nuevas cartas
+      if (data.community && data.community.length > 0) {
         pintarBoard(data.community);
       }
 
-      // 3) Mostrar acción del bot (p.ej. “CALL” o “RAISE”)
-      let txt = `El bot hizo ${data.bot_action}`;
+      // 2) Actualizar pot y stacks
+      actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
+
+      // 3) Mostrar acción del bot
+      let textoBot = `El bot hace ${data.bot_action}`;
       if (data.bot_raise_amount !== null && data.bot_raise_amount !== undefined) {
-        txt += ` de ${data.bot_raise_amount}`;
+        textoBot += ` de ${data.bot_raise_amount}`;
       }
-      messageContainer.textContent = txt;
+      botMessageContainer.textContent = textoBot;
+
+      // 4) Actualizar “Dealer” y “Turno” (por si cambió en esta ronda)
+      dealerDisplay.textContent = formateaNombre(data.dealer);
+      toActDisplay.textContent = formateaNombre(data.to_act);
     })
     .catch(err => {
       console.error("Error en player_action:", err);
@@ -245,17 +271,19 @@ function enviarAccionJugador(action, raiseAmount) {
 }
 
 /**
- * Deshabilita los botones de acción y muestra “Nueva mano”.
+ * Cuando la mano termina, reemplazamos los botones por “Nueva mano”.
  */
 function accionesFinalMano() {
-  // Limpiar contenedor de acciones
   actionsContainer.innerHTML = "";
 
-  // Botón para recargar la página y empezar una nueva mano
   const btnNueva = document.createElement("button");
   btnNueva.textContent = "Nueva mano";
   btnNueva.onclick = () => {
     window.location.reload();
   };
   actionsContainer.appendChild(btnNueva);
+
+  // Deshabilitamos el input de Raise si existe
+  const inputRaise = document.getElementById("raiseInput");
+  if (inputRaise) inputRaise.disabled = true;
 }
