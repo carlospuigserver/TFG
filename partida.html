@@ -6,7 +6,7 @@
   <title>Partida - Nash Poker</title>
   <style>
     /* ----------------------------------------------------------
-       1) La mesa completa de fondo (mesa.png) SIN recuadro tapando
+       1) La mesa completa de fondo (mesa.png)
     ---------------------------------------------------------- */
     body {
       margin: 0;
@@ -21,8 +21,7 @@
     }
 
     /* ----------------------------------------------------------
-       2) QUITAMOS el cuadro semitransparente. 
-       Mantendremos un contenedor vacío solo para agrupar elementos.
+       2) Contenedor principal
     ---------------------------------------------------------- */
     #gameContainer {
       position: relative;
@@ -44,6 +43,7 @@
       background: rgba(0, 0, 0, 0.4);
       padding: 0.5rem 1rem;
       border-radius: 8px;
+      z-index: 2;
     }
 
     /* ----------------------------------------------------------
@@ -56,11 +56,12 @@
       transform: translateX(-50%);
       display: flex;
       gap: 0.5rem;
+      z-index: 2;
     }
     #botCards img {
       width: 80px;
       height: 120px;
-      transform: rotate(180deg); /* Giradas 180° para que “apunten” hacia abajo */
+      transform: rotate(180deg); /* giradas para que apunten hacia abajo */
     }
 
     /* ----------------------------------------------------------
@@ -75,6 +76,7 @@
       font-weight: bold;
       text-shadow: 0 0 4px black;
       min-height: 1.5rem;
+      z-index: 2;
     }
 
     /* ----------------------------------------------------------
@@ -87,11 +89,12 @@
       transform: translateX(-50%);
       display: flex;
       gap: 0.5rem;
+      z-index: 2;
     }
     #communityCards img {
       width: 80px;
       height: 120px;
-      transform: none; /* siempre “derechas” */
+      transform: none;
     }
 
     /* ----------------------------------------------------------
@@ -104,11 +107,12 @@
       transform: translateX(-50%);
       display: flex;
       gap: 0.5rem;
+      z-index: 2;
     }
     #playerCards img {
       width: 80px;
       height: 120px;
-      transform: none; /* derechas */
+      transform: none;
     }
 
     /* ----------------------------------------------------------
@@ -123,35 +127,65 @@
       font-weight: bold;
       text-shadow: 0 0 4px black;
       min-height: 1.5rem;
+      z-index: 2;
     }
 
     /* ----------------------------------------------------------
-       9) Botones de acción e input Raise (abajo - derecha)
+       9) Botones de acción (justo debajo de cartas del jugador)
     ---------------------------------------------------------- */
     #actionsContainer {
       position: absolute;
-      bottom: 10%;
-      right: 5%;
+      bottom: 12%;          /* subido un poco para quedar encima de las cartas */
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 1rem;
+      z-index: 3;           /* más alto que el logContainer */
     }
     #actionsContainer button {
       background: #006600;
       color: white;
       border: none;
-      border-radius: 4px;
-      padding: 0.5rem 0.8rem;
+      border-radius: 6px;
+      padding: 0.7rem 1.2rem;    /* botones más grandes */
       cursor: pointer;
-      font-size: 1rem;
+      font-size: 1.2rem;         /* texto más grande */
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    #actionsContainer button:disabled {
+      background: #444;
+      cursor: not-allowed;
     }
     #actionsContainer input[type="number"] {
-      width: 60px;
-      padding: 0.3rem;
-      border-radius: 4px;
+      width: 70px;
+      padding: 0.4rem;
+      border-radius: 6px;
       border: 1px solid #444;
       background: #222;
       color: #fff;
+      font-size: 1rem;
+    }
+
+    /* ----------------------------------------------------------
+       10) Contenedor de logs (flujo de consola) – en la parte inferior
+    ---------------------------------------------------------- */
+    #logContainer {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-height: 20%;            /* menor altura para no tapar botones */
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 0.5rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #fff;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+      z-index: 1;                  /* atrás de todo lo demás */
     }
   </style>
 </head>
@@ -183,6 +217,9 @@
 
     <!-- 9) Botones de Fold / Call / Raise + input -->
     <div id="actionsContainer"></div>
+
+    <!-- 10) Contenedor de logs (igual que la consola de práctica) -->
+    <div id="logContainer"></div>
   </div>
 
   <!-- Importamos game.js -->

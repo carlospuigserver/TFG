@@ -12,12 +12,16 @@ let dealerDisplay, toActDisplay;
 let communityContainer, playerCardsContainer, botCardsContainer;
 let actionsContainer;
 let botMessageContainer, playerMessageContainer;
+let logContainer;  // donde mostraremos la “consola de logs”
 
 /**
- * Inicia la partida: llama a /api/new_hand,  
+ * Inicia la partida: llama a /api/new_hand,
  * configura el DOM y dibuja las cartas iniciales.
  */
 function iniciarPartida() {
+  // Obtenemos referencia a <div id="logContainer">
+  logContainer = document.getElementById("logContainer");
+
   fetch("/api/new_hand", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -43,22 +47,30 @@ function iniciarPartida() {
       botMessageContainer = document.getElementById("botMessage");
       playerMessageContainer = document.getElementById("playerMessage");
 
-      // 2) Actualizamos pot, stacks, dealer y turno inicial
+      // 2) VOLCAMOS los “logs” que vino en data.logs
+      logContainer.innerHTML = "";
+      data.logs.forEach(line => {
+        const p = document.createElement("div");
+        p.textContent = line;
+        logContainer.appendChild(p);
+      });
+
+      // 3) Actualizamos pot, stacks, dealer y turno inicial
       actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
       dealerDisplay.textContent = formateaNombre(data.dealer);
       toActDisplay.textContent = formateaNombre(data.to_act);
 
-      // 3) Pintamos las hole cards del jugador
+      // 4) Pintamos las hole cards del jugador
       mostrarHoleCards(data.player_hole);
 
-      // 4) Pintamos dos cartas boca abajo para el bot
+      // 5) Pintamos dos cartas boca abajo para el bot
       mostrarBotCardsBack();
 
-      // 5) Limpiamos los mensajes (jugador y bot)
+      // 6) Limpiamos los mensajes (jugador y bot)
       botMessageContainer.textContent = "";
       playerMessageContainer.textContent = "";
 
-      // 6) Habilitamos los botones de acción
+      // 7) Habilitamos los botones de acción
       habilitarBotonesDeAccion();
     })
     .catch(err => {
@@ -220,7 +232,17 @@ function enviarAccionJugador(action, raiseAmount) {
         return;
       }
 
-      // ---------- Caso A: la mano terminó ----------
+      // 0) Actualizamos el “consola de logs”
+      if (data.logs && Array.isArray(data.logs)) {
+        data.logs.forEach(line => {
+          const p = document.createElement("div");
+          p.textContent = line;
+          logContainer.appendChild(p);
+        });
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+
+      // 1) Caso A: la mano terminó por fold o all-in
       if (data.result === "player_ended") {
         botMessageContainer.textContent = "El bot se retira. ¡Tú ganas!";
         if (data.bot_hole) {
@@ -244,25 +266,31 @@ function enviarAccionJugador(action, raiseAmount) {
         return;
       }
 
-      // ---------- Caso B: la mano continúa ----------
-      // 1) Pintar comunidad si hay nuevas cartas
+      // 2) Caso B: la mano continúa (o acabamos de pasar de calle)
+      //    a) Pintar comunidad si hay nuevas cartas
       if (data.community && data.community.length > 0) {
         pintarBoard(data.community);
       }
 
-      // 2) Actualizar pot y stacks
+      //    b) Actualizar pot y stacks
       actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
 
-      // 3) Mostrar acción del bot
+      //    c) Mostrar acción del bot (último movimiento)
       let textoBot = `El bot hace ${data.bot_action}`;
       if (data.bot_raise_amount !== null && data.bot_raise_amount !== undefined) {
         textoBot += ` de ${data.bot_raise_amount}`;
       }
       botMessageContainer.textContent = textoBot;
 
-      // 4) Actualizar “Dealer” y “Turno” (por si cambió en esta ronda)
+      //    d) Actualizar “Dealer” y “Turno” (por si cambió en esta ronda)
       dealerDisplay.textContent = formateaNombre(data.dealer);
       toActDisplay.textContent = formateaNombre(data.to_act);
+
+      //    e) Si hay showdown (street_index == 4), revelamos hole cards del bot
+      if (data.street_index === 4 && data.bot_hole) {
+        mostrarBotHoleCards(data.bot_hole);
+        accionesFinalMano();
+      }
     })
     .catch(err => {
       console.error("Error en player_action:", err);
@@ -283,7 +311,11 @@ function accionesFinalMano() {
   };
   actionsContainer.appendChild(btnNueva);
 
-  // Deshabilitamos el input de Raise si existe
   const inputRaise = document.getElementById("raiseInput");
   if (inputRaise) inputRaise.disabled = true;
 }
+
+// Al cargar la página, vinculamos iniciarPartida() al event listener
+window.addEventListener("DOMContentLoaded", () => {
+  iniciarPartida();
+});

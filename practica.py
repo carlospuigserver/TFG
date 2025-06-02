@@ -500,7 +500,7 @@ class PokerGame:
                 action = Action.RAISE_SMALL
                 raise_amount = max(int(pot_before * 1.0), 1)
 
-            elif eq_bot < 0.80:
+            elif eq_bot < 0.90:
                 # Equity decente pero no alta: capeo también a raise mediano
                 action = Action.RAISE_MEDIUM
                 raise_amount = max(int(pot_before * 1.0), 1)
