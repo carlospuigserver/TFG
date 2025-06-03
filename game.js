@@ -1,5 +1,5 @@
 // ----------------------------------------------------------
-// game.js (con actualizaciones para CHECK y limpieza de mensajes)
+// game.js (detecta CHECK, limpia mensajes y muestra dealer/turno reales)
 // ----------------------------------------------------------
 
 // Generamos un session_id único para cada jugador
@@ -46,30 +46,33 @@ function iniciarPartida() {
       botMessageContainer = document.getElementById("botMessage");
       playerMessageContainer = document.getElementById("playerMessage");
 
-      // 2) Pongo los logs iniciales
+      // 2) Limpiar logs antiguos
       logContainer.innerHTML = "";
+
+      // 3) Pintar logs iniciales
       data.logs.forEach(line => {
         const p = document.createElement("div");
         p.textContent = line;
         logContainer.appendChild(p);
       });
+      logContainer.scrollTop = logContainer.scrollHeight;
 
-      // 3) Actualizo pot, stacks, dealer y turno
+      // 4) Actualizar pot, stacks, dealer y turno
       actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
       dealerDisplay.textContent = formateaNombre(data.dealer);
       toActDisplay.textContent = formateaNombre(data.to_act);
 
-      // 4) Pinto tus hole cards
+      // 5) Pintar tus hole cards
       mostrarHoleCards(data.player_hole);
 
-      // 5) Pinto las cartas boca abajo del bot
+      // 6) Pintar cartas boca abajo del bot
       mostrarBotCardsBack();
 
-      // 6) Inicializo las zonas de mensajes vacías
+      // 7) Inicializar zonas de mensajes vacías
       botMessageContainer.textContent = "";
       playerMessageContainer.textContent = "";
 
-      // 7) Habilito los botones para que puedas actuar
+      // 8) Habilitar botones para tu primera acción
       habilitarBotonesDeAccion();
     })
     .catch(err => {
@@ -224,6 +227,10 @@ function enviarAccionJugador(action, raiseAmount) {
   // Deshabilito de inmediato los botones para evitar dobles clics
   actionsContainer.querySelectorAll("button, input").forEach(el => (el.disabled = true));
 
+  // Limpio de antemano ambos mensajes para que no se solapen
+  playerMessageContainer.textContent = "";
+  botMessageContainer.textContent = "";
+
   fetch("/api/player_action", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -240,7 +247,7 @@ function enviarAccionJugador(action, raiseAmount) {
         return;
       }
 
-      // 0) Actualizo los logs en pantalla
+      // 0) Pinto todos los logs que vienen (incluyen “Bot hace CHECK.”, “Bot hace CALL…”, etc.)
       if (data.logs && Array.isArray(data.logs)) {
         data.logs.forEach(line => {
           const p = document.createElement("div");
@@ -250,7 +257,7 @@ function enviarAccionJugador(action, raiseAmount) {
         logContainer.scrollTop = logContainer.scrollHeight;
       }
 
-      // 1) Caso “player_ended” (tú te retiras o all-in terminó la mano)
+      // 1) Caso “player_ended” (tú te retiras o all‐in terminó la mano)
       if (data.result === "player_ended") {
         botMessageContainer.textContent = "El bot gana la mano.";
         if (data.bot_hole) {
@@ -266,7 +273,6 @@ function enviarAccionJugador(action, raiseAmount) {
       // 2) Caso “bot_folded” (el bot se retira)
       if (data.result === "bot_folded") {
         botMessageContainer.textContent = "El bot se retira. ¡Tú ganas!";
-        // No revelo cartas del bot
         actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
         dealerDisplay.textContent = formateaNombre(data.dealer);
         toActDisplay.textContent = "–";
@@ -274,7 +280,7 @@ function enviarAccionJugador(action, raiseAmount) {
         return;
       }
 
-      // 3) Caso “bot_ended” (el bot gana por all-in o porque tú te retiraste)
+      // 3) Caso “bot_ended” (el bot gana por all‐in o porque tú te retiraste)
       if (data.result === "bot_ended") {
         botMessageContainer.textContent = "El bot gana la mano.";
         if (data.bot_hole) {
@@ -287,7 +293,7 @@ function enviarAccionJugador(action, raiseAmount) {
         return;
       }
 
-      // 4) Caso “new_street” (la apuesta se igualó y pasó a flop/turn/river sin que el bot actuara)
+      // 4) Caso “new_street” (avanzamos de calle sin que el bot actúe)
       if (data.result === "new_street") {
         // a) Pinto la nueva comunidad
         if (data.community && data.community.length > 0) {
@@ -295,20 +301,20 @@ function enviarAccionJugador(action, raiseAmount) {
         }
         // b) Actualizo pot y stacks
         actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
-        // c) Limpio mensaje previo del bot y del jugador
-        botMessageContainer.textContent = "";
+        // c) Limpio ambos mensajes (jugador y bot)
         playerMessageContainer.textContent = "";
+        botMessageContainer.textContent = "";
         // d) Actualizo Dealer y Turno
         dealerDisplay.textContent = formateaNombre(data.dealer);
         toActDisplay.textContent = formateaNombre(data.to_act);
-        // e) Reactivo botones para que el jugador actúe en la nueva ronda
+        // e) Reactivo botones para la nueva ronda
         habilitarBotonesDeAccion();
         return;
       }
 
-      // 5) Caso “showdown” (llegamos al final y mostramos showdown)
+      // 5) Caso “showdown” (final de mano)
       if (data.result === "showdown") {
-        // a) Pinto flop/turn/river completo
+        // a) Pinto toda la comunidad (si no estaba ya pintada)
         if (data.community && data.community.length > 0) {
           pintarBoard(data.community);
         }
@@ -324,26 +330,39 @@ function enviarAccionJugador(action, raiseAmount) {
         return;
       }
 
-      // 6) Caso “la mano continúa” (el bot sí actuó, pero no igualó apuestas ni terminó)
-      //    a) Pinto comunidad parcial si la hubo (por si abrió flop/turn/river antes)
+      // 6) Caso “la mano continúa” (el bot actuó y no terminó ni igualó al mismo tiempo)
+      //    a) Pinto comunidad parcial si hubo nueva carta
       if (data.community && data.community.length > 0) {
         pintarBoard(data.community);
       }
       //    b) Actualizo pot y stacks
       actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
-      //    c) Limpio el mensaje del jugador (aparece solo durante tu turno)
-      playerMessageContainer.textContent = "";
-      //    d) Muestro la acción del bot en su zona
-      let textoBot = `El bot hace ${data.bot_action}`;
-      //    e) Si el bot hizo “RAISE”, agrego “de X”
-      if (data.bot_raise_amount !== null && data.bot_raise_amount !== undefined) {
-        textoBot += ` de ${data.bot_raise_amount}`;
+
+      //    c) Busco en los logs la última línea del bot para mostrarla
+      let botLine = "";
+      if (data.logs && data.logs.length > 0) {
+        for (let i = data.logs.length - 1; i >= 0; i--) {
+          const txt = data.logs[i];
+          if (
+            txt.startsWith("Bot hace CHECK") ||
+            txt.startsWith("Bot hace CALL") ||
+            txt.startsWith("Bot hace RAISE") ||
+            txt.startsWith("Bot se retira")
+          ) {
+            botLine = txt;
+            break;
+          }
+        }
       }
-      botMessageContainer.textContent = textoBot;
-      //    f) Actualizo Dealer y Turno
+      if (botLine) {
+        botMessageContainer.textContent = botLine;
+      }
+
+      //    d) Actualizo Dealer y Turno
       dealerDisplay.textContent = formateaNombre(data.dealer);
       toActDisplay.textContent = formateaNombre(data.to_act);
-      //    g) Reactivo botones para que el jugador vuelva a actuar (si no es showdown)
+
+      //    e) Reactivo botones para que el jugador responda (si no es showdown)
       if (data.street_index < 4) {
         habilitarBotonesDeAccion();
       } else {
