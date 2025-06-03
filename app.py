@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 import pickle
-from practica import PokerGame, Action
+from borrador_practica import PokerGame, Action
 
 app = Flask(__name__, static_folder='.')
 
@@ -83,8 +83,10 @@ def player_action():
     if action is None:
         return jsonify({'error': 'Acción inválida'}), 400
 
-    if action == Action.RAISE_MEDIUM and 'r' in game.history:
-        return jsonify({'error': 'No se permite hacer reraise en esta ronda.'}), 400
+    # Nuevo chequeo para reraise solo si apuestas no están igualadas
+    bets_equal = (game.player_current_bet == game.bot_current_bet)
+    if action == Action.RAISE_MEDIUM and 'r' in game.history and bets_equal:
+        return jsonify({'error': 'No se permite hacer reraise si las apuestas están igualadas.'}), 400
 
     logs = []
 
@@ -113,7 +115,9 @@ def player_action():
     # Acción del bot
     bot_action, bot_raise = game.bot_decide_action(trainer)
 
-    if bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and 'r' in game.history:
+    # Mismo chequeo para bot: no reraise si apuestas igualadas y ya hubo raise
+    bets_equal = (game.player_current_bet == game.bot_current_bet)
+    if bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and 'r' in game.history and bets_equal:
         bot_action = Action.CALL
         bot_raise = None
 
