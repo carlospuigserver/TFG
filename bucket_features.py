@@ -8,11 +8,11 @@ from treys import Card as TreysCard, Evaluator as TreysEvaluator
 _evaluator = TreysEvaluator()
 
 # --------------------------------------------------------
-# 1) FUNCIÓN PARA SIMULAR EQUITY REAL
+# 1) FUNCIÓN PARA SIMULAR EQUITY REAL CON FILTRO DE RANGO DEL OPONENTE
 # --------------------------------------------------------
 def real_equity_estimate(hole, community, num_sim=100):
     """
-    Estima la equity real de `hole` frente a un rival con hole aleatorio.
+    Estima la equity real de `hole` frente a un rival con hole aleatorio filtrado por rango.
     - hole: lista de 2 tuplas (rank_int, suit_int)
     - community: lista de 0..5 tuplas (rank_int, suit_int)
     - num_sim: número de simulaciones Monte Carlo
@@ -27,20 +27,62 @@ def real_equity_estimate(hole, community, num_sim=100):
     used = set(hole + community)
     deck = [c for c in full_deck if c not in used]
 
+    # Función para filtrar manos del rango del oponente
+    def is_hand_in_range(card1, card2):
+        ranks_sorted = sorted([card1[0], card2[0]], reverse=True)
+        suits_list = [card1[1], card2[1]]
+        gap = ranks_sorted[0] - ranks_sorted[1]
+
+        # Parejas: solo pares de 7 o más
+        if ranks_sorted[0] == ranks_sorted[1]:
+            return ranks_sorted[0] >= 7
+
+        # Cartas altas (J o más) o pareja media (7+)
+        if ranks_sorted[0] >= 11 or ranks_sorted[1] >= 11:
+            return True
+
+        # Suited connectors: mismo palo y gap ≤ 1
+        if suits_list[0] == suits_list[1] and gap <= 1:
+            return True
+
+        # Conectadas sin ser suited (gap ≤ 1)
+        if gap <= 1:
+            return True
+
+        # Mano fuera de rango
+        return False
+
+    # Generar todas las combinaciones posibles de manos del oponente dentro del rango
+    possible_opp_hands = []
+    for i in range(len(deck)):
+        for j in range(i + 1, len(deck)):
+            c1, c2 = deck[i], deck[j]
+            if is_hand_in_range(c1, c2):
+                possible_opp_hands.append((c1, c2))
+
+    # Si no hay manos dentro del filtro, usar todas las manos posibles
+    if not possible_opp_hands:
+        for i in range(len(deck)):
+            for j in range(i + 1, len(deck)):
+                possible_opp_hands.append((deck[i], deck[j]))
+
     wins = 0
     ties = 0
     losses = 0
 
     for _ in range(num_sim):
-        random.shuffle(deck)
-
-        # Repartir hole del rival: primeras 2 cartas de deck
-        opp_hole = deck[0:2]
+        random.shuffle(possible_opp_hands)
+        opp_hole = possible_opp_hands[0]
 
         # Completar el board hasta 5 cartas
         missing = 5 - len(community)
         board = community.copy()
-        board.extend(deck[2:2 + missing])
+
+        # Para las cartas comunitarias faltantes, elegir del deck descartando las cartas del oponente y jugador
+        used_sim = set(hole + community + list(opp_hole))
+        deck_sim = [c for c in full_deck if c not in used_sim]
+        random.shuffle(deck_sim)
+        board.extend(deck_sim[:missing])
 
         # Convertir a Treys
         treys_board = [TreysCard.new(_card_to_str(c)) for c in board]

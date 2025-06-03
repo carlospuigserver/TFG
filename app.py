@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 import pickle
-from practica2 import PokerGame, Action
+from practica import PokerGame, Action
 
 app = Flask(__name__, static_folder='.')
 

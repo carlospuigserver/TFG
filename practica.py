@@ -1,6 +1,5 @@
-# practica.py
-#allin controlado
-
+# practica2
+# raise entero controlado por equity y porcentaje del stack
 import random
 import pickle
 import numpy as np
@@ -130,10 +129,8 @@ class PokerGame:
 
     # --- Aplicar acción de jugador o bot ---
     def apply_action(self, actor, action: Action, raise_amount=None):
-        # Si se retira
         if action == Action.FOLD:
             print(f"{actor.capitalize()} se retira (FOLD).")
-            # El oponente se queda con todo el pot; no hay side pot en fold.
             if actor == "player":
                 self.bot_chips += self.pot
                 print("Bot gana la mano.")
@@ -141,9 +138,8 @@ class PokerGame:
                 self.player_chips += self.pot
                 print("Jugador gana la mano.")
             self.pot = 0
-            return True  # Indica que la mano terminó por fold
+            return True
 
-        # Determinamos cuánto hay que pagar para llamar
         if actor == "player":
             to_call = self.current_bet - self.player_current_bet
             stack = self.player_chips
@@ -151,17 +147,16 @@ class PokerGame:
             to_call = self.current_bet - self.bot_current_bet
             stack = self.bot_chips
 
-        # CALL / CHECK
         if action == Action.CALL:
             pay = min(to_call, stack)
             if actor == "player":
                 self.player_chips -= pay
                 self.player_current_bet += pay
-                self.player_contrib += pay  # Actualizamos contribución
+                self.player_contrib += pay
             else:
                 self.bot_chips -= pay
                 self.bot_current_bet += pay
-                self.bot_contrib += pay  # Actualizamos contribución
+                self.bot_contrib += pay
             self.pot += pay
             if pay == 0:
                 print(f"{actor.capitalize()} hace CHECK.")
@@ -169,23 +164,17 @@ class PokerGame:
                 print(f"{actor.capitalize()} hace CALL de {pay} fichas.")
             self.history += 'c'
 
-        # RAISE (pequeño, medio o grande)
         elif action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]:
-            # Permitir raise si:
-            # - Las apuestas no están igualadas (hay que igualar y subir)
-            # - O las apuestas están igualadas pero no hubo raise previo en esta ronda (history no contiene 'r')
             if self.player_current_bet == self.bot_current_bet and 'r' in self.history:
                 print(f"{actor.capitalize()} intenta hacer reraise pero las apuestas ya están igualadas y hubo raise previo en esta ronda. Acción inválida.")
                 return False
 
-            # Si no se pasa raise_amount explícito, lo calculamos por convención
             if raise_amount is None:
                 if action == Action.RAISE_SMALL:
                     raise_amount = max(int(self.pot * 0.5), 1)
                 elif action == Action.RAISE_MEDIUM:
                     raise_amount = max(int(self.pot * 1.0), 1)
                 else:
-                    # ALL-IN implícito: apostar todo su stack
                     raise_amount = stack
 
             total_put = to_call + raise_amount
@@ -194,11 +183,11 @@ class PokerGame:
             if actor == "player":
                 self.player_chips -= total_put
                 self.player_current_bet += total_put
-                self.player_contrib += total_put  # Actualizamos contribución
+                self.player_contrib += total_put
             else:
                 self.bot_chips -= total_put
                 self.bot_current_bet += total_put
-                self.bot_contrib += total_put  # Actualizamos contribución
+                self.bot_contrib += total_put
 
             self.pot += total_put
             self.current_bet = max(
@@ -212,14 +201,11 @@ class PokerGame:
             print("Acción no reconocida.")
             return False
 
-        return False  # Indica que la mano continúa
+        return False
 
-
-    # --- Mostrar stacks ---
     def print_chip_counts(self):
         print(f"Fichas -> Tú: {self.player_chips} | Bot: {self.bot_chips} | Pot: {self.pot}")
 
-    # --- Avanzar calle ---
     def next_street(self):
         self.street_index += 1
         self.current_bet = 0
@@ -238,7 +224,6 @@ class PokerGame:
 
         self.print_chip_counts()
 
-    # --- Evaluación simple de manos ---
     def get_rank(self, card):
         rank_values = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
                        '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11,
@@ -350,32 +335,26 @@ class PokerGame:
         print("Tus cartas:", self.player_hole, "+ Comunidad:", self.community_cards)
         print("Cartas del bot:", self.bot_hole, "+ Comunidad:", self.community_cards)
 
-        # 1) Evaluar mejor mano de 7 cartas para cada jugador
         player_best = self.evaluate_hand7(self.player_hole + self.community_cards)
         bot_best = self.evaluate_hand7(self.bot_hole + self.community_cards)
 
         print("Tu mejor jugada:", self.describe_hand(player_best))
         print("Mejor jugada del bot:", self.describe_hand(bot_best))
 
-        # 2) Contribuciones ya acumuladas a lo largo de la mano
         contrib_player = self.player_contrib
         contrib_bot = self.bot_contrib
 
-        # 3) Determinar main pot y side pot correctamente
         main_contrib = min(contrib_player, contrib_bot)
         main_pot = main_contrib * 2
         side_pot = (contrib_player + contrib_bot) - main_pot
 
         print(f"\n-- Pot total: {self.pot} fichas (Main Pot={main_pot}, Side Pot={side_pot})")
 
-        # 4) Comparar manos y repartir
         cmp = self.compare_hands(player_best, bot_best)
         if cmp > 0:
-            # El jugador gana el main pot; el side pot (si existe) va al que aportó más
             print(f"¡Ganas la mano y te llevas el MAIN POT de {main_pot} fichas!")
             self.player_chips += main_pot
             if side_pot > 0:
-                # Quien aportó más al side pot lo gana
                 if contrib_player > contrib_bot:
                     print(f"El SIDE POT ({side_pot} fichas) lo ganas tú porque aportaste más.")
                     self.player_chips += side_pot
@@ -383,12 +362,10 @@ class PokerGame:
                     print(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
                     self.bot_chips += side_pot
         elif cmp < 0:
-            # El bot gana main + side (o solo main si no hubo side)
             total_win = main_pot + side_pot
             print(f"El bot gana la mano y se lleva MAIN+SIDE POT: {total_win} fichas.")
             self.bot_chips += total_win
         else:
-            # Empate: dividir el main pot; el side pot va al que aportó más
             half_main = main_pot // 2
             print(f"Empate. Se reparte MAIN POT: cada uno recibe {half_main} fichas.")
             self.player_chips += half_main
@@ -400,11 +377,9 @@ class PokerGame:
                 else:
                     self.player_chips += side_pot
 
-        # 5) Limpiar pot y mostrar stacks finales
         self.pot = 0
         self.print_chip_counts()
 
-    # --- Revelar cartas restantes en all-in ---
     def reveal_remaining_community_cards(self):
         while self.street_index < 3:
             self.street_index += 1
@@ -416,9 +391,7 @@ class PokerGame:
                 print("\nRiver:", self.community_cards[4])
         self.print_chip_counts()
 
-    # --- Decide acción bot basado en modelo entrenado (con cap de tamaño según equity) ---
     def bot_decide_action(self, trainer):
-        # Map para convertir "As" → (14,1), etc.
         rank_map = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
                     '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11,
                     'Q': 12, 'K': 13, 'A': 14}
@@ -436,12 +409,10 @@ class PokerGame:
         nodes = trainer.nodes.get(phase, {})
 
         if km is None or nodes is None:
-            # Si no hay modelo entrenado, elige acción aleatoria
             action = random.choice(list(Action))
             raise_amount = None
             return action, raise_amount
 
-        # Convertir las cartas del bot y la comunidad a tupla (rank, suit)
         hole_cards_numeric = convert_cards(self.bot_hole)
         if self.street_index == 0:
             community_numeric = []
@@ -452,7 +423,6 @@ class PokerGame:
         else:
             community_numeric = convert_cards(self.community_cards[:5])
 
-        # Calcular features para bucketizar
         feats = hand_to_features_enhanced(
             hole_cards_numeric,
             community_numeric,
@@ -471,87 +441,100 @@ class PokerGame:
         action_idx = np.random.choice(range(NUM_ACTIONS), p=strat)
         action = Action(action_idx)
 
-        # Determinar raise_amount según convención
         if action == Action.RAISE_SMALL:
             raise_amount = max(int(self.pot * 0.5), 1)
         elif action == Action.RAISE_MEDIUM:
             raise_amount = max(int(self.pot * 1.0), 1)
         elif action == Action.RAISE_LARGE:
-            # ALL-IN puro: apostará todo lo que le queda
             raise_amount = self.bot_chips
         else:
             raise_amount = None
 
-        # ======== BLOQUE NUEVO: CAPEAR raise_large SEGÚN equity del bot ========
-        if action == Action.RAISE_LARGE and raise_amount is not None:
-            # 1) Calcular equity real de la mano del bot vs. rival aleatorio
+        bets_equal = (self.player_current_bet == self.bot_current_bet)
+        already_raised = 'r' in self.history
+        is_raise_action = action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]
+
+        if is_raise_action and bets_equal and already_raised:
             eq_bot = real_equity_estimate(
                 hole_cards_numeric,
                 community_numeric,
-                num_sim=500  # ajustable (más sims → mayor precisión, pero tarde)
+                num_sim=500
             )
-
-            # 2) Obtener tamaño del bote antes de apostar
             pot_before = self.pot
 
-            # 3) Definir umbrales de equity para cap:
-            #    - eq_bot < 0.40 → no all-in (CALL)
-            #    - 0.40 ≤ eq_bot < 0.50 → RAISE_MEDIUM
-            #    - 0.50 ≤ eq_bot < 0.60 → RAISE_MEDIUM (intermedio)
-            #    - eq_bot ≥ 0.60 → ALL-IN completo
-            if eq_bot < 0.50:
-                # Demasiado baja equity: hacemos CALL en vez de all-in
+            if eq_bot < 0.30:
+                to_call = self.current_bet - self.bot_current_bet
+                if to_call > 0:
+                    action = Action.FOLD
+                    raise_amount = None
+                else:
+                    action = Action.CALL
+                    raise_amount = None
+            elif eq_bot < 0.65:
                 action = Action.CALL
                 raise_amount = None
-
-            elif eq_bot < 0.60:
-                # Equity moderada: capeo a raise mediano (≈1× bote)
-                action = Action.RAISE_SMALL
-                raise_amount = max(int(pot_before * 1.0), 1)
-
-            elif eq_bot < 0.90:
-                # Equity decente pero no alta: capeo también a raise mediano
-                action = Action.RAISE_MEDIUM
-                raise_amount = max(int(pot_before * 1.0), 1)
-
             else:
-                # Equity alta (≥0.80): permitimos full all-in
-                action = Action.RAISE_LARGE
-                raise_amount = self.bot_chips
-        # ======== FIN DEL BLOQUE DE CAPEO ========
+                if raise_amount > self.bot_chips * 0.4:
+                    if eq_bot < 0.50:
+                        action = Action.CALL
+                        raise_amount = None
+                    elif eq_bot < 0.70:
+                        action = Action.RAISE_SMALL
+                        raise_amount = max(int(pot_before * 0.5), 1)
+                    elif eq_bot < 0.90:
+                        action = Action.RAISE_MEDIUM
+                        raise_amount = max(int(pot_before * 1.0), 1)
+                    else:
+                        action = Action.RAISE_LARGE
+                        raise_amount = self.bot_chips
+
+        elif is_raise_action and raise_amount is not None:
+            if raise_amount > self.bot_chips * 0.4:
+                eq_bot = real_equity_estimate(
+                    hole_cards_numeric,
+                    community_numeric,
+                    num_sim=500
+                )
+                pot_before = self.pot
+
+                if eq_bot < 0.50:
+                    action = Action.CALL
+                    raise_amount = None
+                elif eq_bot < 0.70:
+                    action = Action.RAISE_SMALL
+                    raise_amount = max(int(pot_before * 0.5), 1)
+                elif eq_bot < 0.90:
+                    action = Action.RAISE_MEDIUM
+                    raise_amount = max(int(pot_before * 1.0), 1)
+                else:
+                    action = Action.RAISE_LARGE
+                    raise_amount = self.bot_chips
 
         return action, raise_amount
 
-    # --- Obtener quién inicia la ronda de apuestas ---
     def get_first_actor(self):
-        # Big Blind actúa primero (el que no es dealer)
         return "bot" if self.dealer == "player" else "player"
 
-    # --- Ronda de apuestas con lógica all-in + check integrada ---
     def betting_round(self, starter, trainer):
         has_acted = {"player": False, "bot": False}
         current_turn = starter
         print(f"\n--- Nueva ronda de apuestas (inicia: {current_turn.upper()}) ---")
 
         while True:
-            # 1) Si ambos han actuado e igualaron apuestas → acaba esta ronda
             if has_acted["player"] and has_acted["bot"] and \
                self.player_current_bet == self.bot_current_bet:
                 print("Ronda de apuestas completada.")
                 self.print_chip_counts()
                 return "continue"
 
-            # 2) Condición ALL-IN
             player_allin = (self.player_chips == 0)
             bot_allin = (self.bot_chips == 0)
             bets_equal = (self.player_current_bet == self.bot_current_bet)
 
-            # Caso A: ambos ALL-IN o uno ALL-IN y apuestas igualadas → showdown
             if (player_allin and bot_allin) or ((player_allin or bot_allin) and bets_equal):
                 print("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
                 return "all_in"
 
-            # Caso B: uno está ALL-IN y las apuestas NO están igualadas → el otro debe CALL o FOLD
             if (player_allin or bot_allin) and not bets_equal:
                 if current_turn == "player":
                     print("Estás contra un ALL IN y debes decidir call o fold.")
@@ -569,7 +552,6 @@ class PokerGame:
                         continue
                     return "all_in"
                 else:
-                    # Turno del bot contra all-in
                     to_call = self.current_bet - self.bot_current_bet
                     if to_call > 0:
                         paid = min(to_call, self.bot_chips)
@@ -585,7 +567,6 @@ class PokerGame:
                         print("Bot hace CHECK contra un all-in.")
                     return "all_in"
 
-            # 3) Turno normal (no ALL-IN)
             if current_turn == "player":
                 action_str = input("Tu acción (fold, call, raise): ").strip().lower()
                 if action_str == "fold":
@@ -616,13 +597,10 @@ class PokerGame:
                 current_turn = "bot"
 
             else:
-                # Turno del BOT
                 action, raise_amount = self.bot_decide_action(trainer)
 
-                # Calculamos cuánto necesita para call
                 to_call_bot = self.current_bet - self.bot_current_bet
 
-                # Si el bot decide FOLD pero no hay nada que pagar (to_call_bot == 0), interpretamos como CHECK
                 if action == Action.FOLD and to_call_bot == 0:
                     print("Bot decide FOLD pero es CHECK (no hay nada que pagar).")
                     print("Bot hace CHECK.")
@@ -640,32 +618,28 @@ class PokerGame:
 
             print(f"Apuestas -> Tú: {self.player_current_bet} | Bot: {self.bot_current_bet} | Pot: {self.pot}")
 
-    # --- Juego completo con integración all-in + check ---
     def play_hand(self, trainer):
         if not self.start_hand():
             return False
 
-        for _ in range(4):  # máximo 4 calles: preflop, flop, turn, river
+        for _ in range(4):
             starter = self.get_first_actor()
             result = self.betting_round(starter, trainer)
 
             if result == "fold":
                 return True
             if result == "all_in":
-                # Revela las cartas restantes antes del showdown
                 self.reveal_remaining_community_cards()
                 self.showdown()
                 return True
 
             self.next_street()
 
-        # Después de la última calle (river) → showdown normal
         self.showdown()
         return True
 
 
 def main():
-    # Cargar trainer entrenado (CFR)
     with open("cfr_entreno.pkl", "rb") as f:
         trainer = pickle.load(f)
 
