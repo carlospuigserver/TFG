@@ -1,5 +1,5 @@
-# practica2.py
-
+#practica2
+#raise entero controlado por equity y porcentaje del stack
 import random
 import pickle
 import numpy as np
@@ -212,7 +212,6 @@ class PokerGame:
             return False
 
         return False  # Indica que la mano continúa
-
 
     # --- Mostrar stacks ---
     def print_chip_counts(self):
@@ -481,43 +480,35 @@ class PokerGame:
         else:
             raise_amount = None
 
-        # ======== BLOQUE NUEVO: CAPEAR raise_large SEGÚN equity del bot ========
-        if action == Action.RAISE_LARGE and raise_amount is not None:
-            # 1) Calcular equity real de la mano del bot vs. rival aleatorio
-            eq_bot = real_equity_estimate(
-                hole_cards_numeric,
-                community_numeric,
-                num_sim=500  # ajustable (más sims → mayor precisión, pero tarde)
-            )
+        # ======== BLOQUE NUEVO: LIMITAR tamaño del raise según equity y porcentaje stack ========
+        if action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and raise_amount is not None:
+            # Verificar si raise_amount es más del 40% del stack del bot
+            if raise_amount > self.bot_chips * 0.4:
+                # Calcular equity real
+                eq_bot = real_equity_estimate(
+                    hole_cards_numeric,
+                    community_numeric,
+                    num_sim=500  # ajustable para más precisión o rapidez
+                )
+                pot_before = self.pot
 
-            # 2) Obtener tamaño del bote antes de apostar
-            pot_before = self.pot
-
-            # 3) Definir umbrales de equity para cap:
-            #    - eq_bot < 0.40 → no all-in (CALL)
-            #    - 0.40 ≤ eq_bot < 0.50 → RAISE_MEDIUM
-            #    - 0.50 ≤ eq_bot < 0.60 → RAISE_MEDIUM (intermedio)
-            #    - eq_bot ≥ 0.60 → ALL-IN completo
-            if eq_bot < 0.50:
-                # Demasiado baja equity: hacemos CALL en vez de all-in
-                action = Action.CALL
-                raise_amount = None
-
-            elif eq_bot < 0.60:
-                # Equity moderada: capeo a raise mediano (≈1× bote)
-                action = Action.RAISE_SMALL
-                raise_amount = max(int(pot_before * 1.0), 1)
-
-            elif eq_bot < 0.90:
-                # Equity decente pero no alta: capeo también a raise mediano
-                action = Action.RAISE_MEDIUM
-                raise_amount = max(int(pot_before * 1.0), 1)
-
-            else:
-                # Equity alta (≥0.80): permitimos full all-in
-                action = Action.RAISE_LARGE
-                raise_amount = self.bot_chips
-        # ======== FIN DEL BLOQUE DE CAPEO ========
+                if eq_bot < 0.50:
+                    # Equity baja: no raise grande, hacemos CALL
+                    action = Action.CALL
+                    raise_amount = None
+                elif eq_bot < 0.70:
+                    # Equity moderada: limitar a raise pequeño (50% pote)
+                    action = Action.RAISE_SMALL
+                    raise_amount = max(int(pot_before * 0.5), 1)
+                elif eq_bot < 0.90:
+                    # Equity buena: limitar a raise medio (100% pote)
+                    action = Action.RAISE_MEDIUM
+                    raise_amount = max(int(pot_before * 1.0), 1)
+                else:
+                    # Equity muy alta: permitir raise grande (all-in)
+                    action = Action.RAISE_LARGE
+                    raise_amount = self.bot_chips
+        # ======== FIN BLOQUE NUEVO ========
 
         return action, raise_amount
 

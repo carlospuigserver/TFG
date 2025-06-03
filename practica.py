@@ -1,4 +1,5 @@
-# practica2.py
+# practica.py
+#allin controlado
 
 import random
 import pickle
@@ -170,6 +171,13 @@ class PokerGame:
 
         # RAISE (pequeño, medio o grande)
         elif action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]:
+            # Permitir raise si:
+            # - Las apuestas no están igualadas (hay que igualar y subir)
+            # - O las apuestas están igualadas pero no hubo raise previo en esta ronda (history no contiene 'r')
+            if self.player_current_bet == self.bot_current_bet and 'r' in self.history:
+                print(f"{actor.capitalize()} intenta hacer reraise pero las apuestas ya están igualadas y hubo raise previo en esta ronda. Acción inválida.")
+                return False
+
             # Si no se pasa raise_amount explícito, lo calculamos por convención
             if raise_amount is None:
                 if action == Action.RAISE_SMALL:
@@ -205,6 +213,7 @@ class PokerGame:
             return False
 
         return False  # Indica que la mano continúa
+
 
     # --- Mostrar stacks ---
     def print_chip_counts(self):
