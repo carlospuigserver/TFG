@@ -1,5 +1,5 @@
 # ---------------------------------
-# app.py (sin reraise, reinicio de stacks, rotación de dealer, CHECK-CHECK -> next street)
+# app.py (sin reraise, reinicio de stacks, rotación de dealer, CHECK–CHECK detectado correctamente)
 # ---------------------------------
 from flask import Flask, request, jsonify, render_template
 import pickle
@@ -36,25 +36,24 @@ def new_hand():
     if not sid:
         return jsonify({"error": "Falta session_id"}), 400
 
+    # Si es la primera mano de esta sesión, creamos el PokerGame y forzamos dealer="player"
     if sid not in games:
-        # Primera mano de esta sesión: creamos PokerGame y forzamos dealer="player"
         game = PokerGame()
         game.dealer = "player"
         games[sid] = game
     else:
         game = games[sid]
-        # Si alguno llegó a 0 fichas, reiniciamos ambos a INITIAL_STACK
+        # Si alguno llegó a 0 fichas, reiniciamos ambos stacks a 1000
         if game.player_chips == 0 or game.bot_chips == 0:
             game.player_chips = INITIAL_STACK
             game.bot_chips = INITIAL_STACK
-        # En cualquier caso reutilizamos la misma instancia
-        # start_hand() limpiará bets, pot, history, etc.
+        # En cualquier otro caso, reutilizamos la misma instancia (se arrastran las pilas restantes)
 
     # Llamamos start_hand() para alternar dealer, barajar, repartir y publicar blinds
     if not game.start_hand():
         return jsonify({"error": "No hay fichas para blinds"}), 400
 
-    # Reconstruimos logs según lo que `practica.py` habría impreso
+    # Reconstruimos “logs” tal cual lo imprimiría practica.py
     logs = []
     sb = game.small_blind
     bb = game.big_blind
@@ -99,12 +98,12 @@ def player_action():
     game = games[sid]
     logs = []
 
-    # 0) Si arrancamos nueva ronda de apuestas
+    # 0) Si arrancamos una nueva ronda de apuestas (player_current_bet == bot_current_bet == 0)
     if game.player_current_bet == 0 and game.bot_current_bet == 0:
         starter = game.get_first_actor().upper()
         logs.append(f"--- Nueva ronda de apuestas (inicia: {starter}) ---")
 
-    # 1) Convertimos la string a Action
+    # 1) Convertimos la string a la enumeración Action
     if action_str == "fold":
         act = Action.FOLD
     elif action_str == "call":
@@ -114,7 +113,7 @@ def player_action():
     else:
         return jsonify({"error": "Acción inválida"}), 400
 
-    # 2) Loguear con texto exacto
+    # 2) Loguear texto exacto de la acción del jugador
     to_call_p = game.current_bet - game.player_current_bet
     if act == Action.FOLD:
         player_action_str = "FOLD"
@@ -136,7 +135,7 @@ def player_action():
     # 3) Aplicar la acción del jugador
     termino = game.apply_action("player", act, raise_amt)
     if termino:
-        # Player fold o ganó con all-in
+        # El jugador se plegó o hizo all-in que terminó la mano
         pot_before = game.pot
         response = {
             "logs": logs,
@@ -150,8 +149,9 @@ def player_action():
         game.pot = 0
         return jsonify(response)
 
-    # 4) Flujo de apuestas SIN reraise:
-    #    – Si player hizo CALL para igualar un bet (to_call_p > 0), termina la ronda:
+    # 4) Detectar cierre de ronda en caso de “player hizo CALL a un bet abierto (to_call_p > 0)”
+    #    o bien “player hizo CHECK (to_call_p == 0) pero el bot más adelante también haga CHECK”.
+    #    Aquí, primero comprobamos si el jugador igualó un bet abierto:
     if act == Action.CALL and to_call_p > 0:
         logs.append("Ronda de apuestas completada.")
         logs.append(f"Fichas -> Tú: {game.player_chips} | Bot: {game.bot_chips} | Pot: {game.pot}")
@@ -242,14 +242,15 @@ def player_action():
             }
             return jsonify(response)
 
-    # 5) Si no fue CALL a un bet abierto (o fue un CHECK), entonces el bot debe actuar
+    # 5) Si el jugador hizo “CHECK” (CALL de 0) **y no igualó un bet**, entonces es turno del bot
     to_call_b_pre = game.current_bet - game.bot_current_bet
     bot_act, bot_raise_amt = game.bot_decide_action(trainer)
 
     logs.append(f"Bot decide {bot_act.name} con raise_amount={bot_raise_amt}")
 
-    # 6) Loguear la acción exacta del bot
+    # 6) Loguear la acción exacta del bot (distinción CALL vs. CHECK)
     if bot_act == Action.FOLD:
+        # Si no hay nada que pagar, interpretamos FOLD como CHECK
         if to_call_b_pre == 0:
             bot_action_str = "CHECK"
             logs.append("Bot hace CHECK.")
@@ -265,6 +266,7 @@ def player_action():
             bot_action_str = "CALL"
             logs.append(f"Bot hace CALL de {pay_b} fichas.")
     else:
+        # RAISE_SMALL, RAISE_MEDIUM, RAISE_LARGE
         total_put_b = to_call_b_pre + (bot_raise_amt if bot_raise_amt is not None else 0)
         total_put_b = min(total_put_b, game.bot_chips)
         bot_action_str = "RAISE"
@@ -273,7 +275,7 @@ def player_action():
     # 7) Aplicar la acción del bot
     termino_bot = game.apply_action("bot", bot_act, bot_raise_amt)
     if termino_bot:
-        # Si bot fold real (después de que existiera un to_call_b_pre > 0)
+        # Si el bot hizo “FOLD” real (y había un to_call_b_pre > 0), cerramos la mano
         if bot_act == Action.FOLD and to_call_b_pre > 0:
             response = {
                 "logs": logs,
@@ -286,7 +288,7 @@ def player_action():
             game.pot = 0
             return jsonify(response)
 
-        # Si bot ganó por all-in o porque el jugador se había retirado
+        # Si el bot ganó por all-in o porque el jugador ya se había retirado
         pot_before = game.pot
         response = {
             "logs": logs,
@@ -302,10 +304,15 @@ def player_action():
         game.pot = 0
         return jsonify(response)
 
-    # 8) Verificar: si bot igualó un bet abierto (CALL con to_call_b_pre > 0), o si hubo CHECK–CHECK,
-    #    entonces la ronda termina (y se avanza o showdown en river).
+    # 8) Detectar cierre de ronda en “raise→call” o en “check–check (CHECK del player + CHECK del bot)”:
+
+    # ¿Fue “player hizo CHECK” (to_call_p == 0) y luego “bot hizo CHECK” (to_call_b_pre == 0)?
     is_check_check = (player_action_str == "CHECK" and bot_action_str == "CHECK")
-    if (bot_act == Action.CALL and to_call_b_pre > 0) or is_check_check:
+
+    # ¿Fue “bot hizo CALL” a un bet abierto? (to_call_b_pre > 0 en el momento de la llamada)
+    is_call_to_bet = (bot_act == Action.CALL and to_call_b_pre > 0)
+
+    if is_call_to_bet or is_check_check:
         logs.append("Ronda de apuestas completada.")
         logs.append(f"Fichas -> Tú: {game.player_chips} | Bot: {game.bot_chips} | Pot: {game.pot}")
 
@@ -395,9 +402,9 @@ def player_action():
             }
             return jsonify(response)
 
-    # 9) Si llegamos hasta aquí, significa que NO hubo igualdad de apuestas que termine la ronda:
-    #    p.ej. player hizo CHECK y bot decide RAISE → sigue la ronda,
-    #    o player hizo RAISE (sin que bot iguale aún). Devolvemos estado tal cual.
+    # 9) Si llegamos hasta aquí, significa que no se cerró la ronda (p.ej. player CHECK + bot RAISE,
+    #    o player RAISE + bot >CALL (reraise prohibido), o player RAISE + bot hizo CALL parcial (pero sin igualar completamente el bet),
+    #    etc.). Devolvemos el estado “tal cual” para que el jugador u otro actor siga actuando.
     next_actor = game.get_first_actor()
     if game.street_index == 1:
         comm = game.community_cards[:3]
