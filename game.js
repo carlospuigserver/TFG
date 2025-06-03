@@ -216,6 +216,9 @@ function habilitarBotonesDeAccion() {
  * raiseAmount: número (o null).
  */
 function enviarAccionJugador(action, raiseAmount) {
+  // Deshabilitamos botones para evitar clicks múltiples
+  actionsContainer.querySelectorAll("button, input").forEach(el => (el.disabled = true));
+
   fetch("/api/player_action", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -242,9 +245,9 @@ function enviarAccionJugador(action, raiseAmount) {
         logContainer.scrollTop = logContainer.scrollHeight;
       }
 
-      // 1) Caso A: la mano terminó por fold o all-in
+      // 1) Caso A: la mano terminó por fold o all-in (player_ended)
       if (data.result === "player_ended") {
-        botMessageContainer.textContent = "El bot se retira. ¡Tú ganas!";
+        botMessageContainer.textContent = "El bot gana la mano.";
         if (data.bot_hole) {
           mostrarBotHoleCards(data.bot_hole);
         }
@@ -254,6 +257,19 @@ function enviarAccionJugador(action, raiseAmount) {
         accionesFinalMano();
         return;
       }
+
+      // 2) Caso B: el bot se retira (bot_folded)
+      if (data.result === "bot_folded") {
+        botMessageContainer.textContent = "El bot se retira. ¡Tú ganas!";
+        // No revelamos cartas del bot
+        actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
+        dealerDisplay.textContent = formateaNombre(data.dealer);
+        toActDisplay.textContent = "–";
+        accionesFinalMano();
+        return;
+      }
+
+      // 3) Caso C: el bot gana direct (bot_ended)
       if (data.result === "bot_ended") {
         botMessageContainer.textContent = "El bot gana la mano.";
         if (data.bot_hole) {
@@ -266,29 +282,63 @@ function enviarAccionJugador(action, raiseAmount) {
         return;
       }
 
-      // 2) Caso B: la mano continúa (o acabamos de pasar de calle)
-      //    a) Pintar comunidad si hay nuevas cartas
+      // 4) Caso D: se completó una ronda y avanzamos de calle sin que haya actuado el bot (new_street)
+      if (data.result === "new_street") {
+        // a) Pintar comunidad
+        if (data.community && data.community.length > 0) {
+          pintarBoard(data.community);
+        }
+        // b) Actualizar pot y stacks
+        actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
+        // c) Limpiar mensajes previos de bot
+        botMessageContainer.textContent = "";
+        // d) Actualizar “Dealer” y “Turno”
+        dealerDisplay.textContent = formateaNombre(data.dealer);
+        toActDisplay.textContent = formateaNombre(data.to_act);
+        // e) Reactivar botones para la nueva ronda
+        habilitarBotonesDeAccion();
+        return;
+      }
+
+      // 5) Caso E: showdown tras igualar river o all-in (showdown)
+      if (data.result === "showdown") {
+        // a) Mostrar flop/turn/river completo si hace falta
+        if (data.community && data.community.length > 0) {
+          pintarBoard(data.community);
+        }
+        // b) Revelar bot hole cards
+        if (data.bot_hole) {
+          mostrarBotHoleCards(data.bot_hole);
+        }
+        // c) Actualizar pot y stacks finales
+        actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
+        dealerDisplay.textContent = formateaNombre(data.dealer);
+        toActDisplay.textContent = "–";
+        accionesFinalMano();
+        return;
+      }
+
+      // 6) Caso F: la mano continúa (ambos han actuado pero no igualaron aún)
+      //    a) Pintar comunidad parcial si llegó una nueva calle (en este escenario, el bot actuó en la misma calle)
       if (data.community && data.community.length > 0) {
         pintarBoard(data.community);
       }
-
       //    b) Actualizar pot y stacks
       actualizarPotYStacks(data.pot, data.player_chips, data.bot_chips);
-
-      //    c) Mostrar acción del bot (último movimiento)
+      //    c) Mostrar acción del bot
       let textoBot = `El bot hace ${data.bot_action}`;
       if (data.bot_raise_amount !== null && data.bot_raise_amount !== undefined) {
         textoBot += ` de ${data.bot_raise_amount}`;
       }
       botMessageContainer.textContent = textoBot;
-
-      //    d) Actualizar “Dealer” y “Turno” (por si cambió en esta ronda)
+      //    d) Actualizar “Dealer” y “Turno”
       dealerDisplay.textContent = formateaNombre(data.dealer);
       toActDisplay.textContent = formateaNombre(data.to_act);
-
-      //    e) Si hay showdown (street_index == 4), revelamos hole cards del bot
-      if (data.street_index === 4 && data.bot_hole) {
-        mostrarBotHoleCards(data.bot_hole);
+      //    e) Reactivar botones para que el jugador siga (si no es showdown)
+      if (data.street_index < 4) {
+        habilitarBotonesDeAccion();
+      } else {
+        // Si llegamos por error a street_index 4 sin “showdown” explícito, forzamos final
         accionesFinalMano();
       }
     })
@@ -311,6 +361,7 @@ function accionesFinalMano() {
   };
   actionsContainer.appendChild(btnNueva);
 
+  // Desactivar input de raise si existiera
   const inputRaise = document.getElementById("raiseInput");
   if (inputRaise) inputRaise.disabled = true;
 }
