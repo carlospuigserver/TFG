@@ -184,7 +184,7 @@ async function sendPlayerAction(action, raise_amount = null) {
     const winnerLine = data.log.find(m => {
       const low = m.toLowerCase();
       return low.startsWith("¡ganas") ||
-             low.startsWith("¡el bot gana") ||
+             low.startsWith("el bot gana") ||
              low.includes("empate");
     }) || "";
 
