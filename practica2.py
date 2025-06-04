@@ -416,7 +416,6 @@ class PokerGame:
 
     # --- Decide acción bot basado en modelo entrenado (con cap de tamaño según equity) ---
     def bot_decide_action(self, trainer):
-        # Map para convertir "As" → (14,1), etc.
         rank_map = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
                     '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11,
                     'Q': 12, 'K': 13, 'A': 14}
@@ -433,13 +432,7 @@ class PokerGame:
         km = trainer.kmeans_models.get(phase)
         nodes = trainer.nodes.get(phase, {})
 
-        if km is None or nodes is None:
-            # Si no hay modelo entrenado, elige acción aleatoria
-            action = random.choice(list(Action))
-            raise_amount = None
-            return action, raise_amount
-
-        # Convertir las cartas del bot y la comunidad a tupla (rank, suit)
+        # Convertir cartas del bot y comunidad a form. numérico
         hole_cards_numeric = convert_cards(self.bot_hole)
         if self.street_index == 0:
             community_numeric = []
@@ -450,67 +443,92 @@ class PokerGame:
         else:
             community_numeric = convert_cards(self.community_cards[:5])
 
-        # Calcular features para bucketizar
-        feats = hand_to_features_enhanced(
-            hole_cards_numeric,
-            community_numeric,
-            pot=self.pot,
-            history=history_for_bucket,
-            to_act=1
-        )
-        bucket = km.predict(feats.reshape(1, -1))[0]
+        # A) Calcular cuánto debe pagar para call
+        to_call = self.current_bet - self.bot_current_bet
 
-        info_set = f"{phase}|{bucket}|{history_for_bucket}"
-        if info_set in nodes:
-            strat = nodes[info_set].get_average_strategy()
+        # B) Si debe pagar, RESPONDER a un raise del jugador usando equity
+        if to_call > 0:
+            # Calcular equity del bot contra rango
+            eq_bot = real_equity_estimate(
+                hole_cards_numeric,
+                community_numeric,
+                num_sim=500
+            )
+            # Si equity muy bajo => fold si hay que pagar
+            if eq_bot < 0.30:
+                return Action.FOLD, None
+            # Si equity moderado => solo call
+            if eq_bot < 0.65:
+                return Action.CALL, None
+            # Si equity alta => reraise proporcional
+            pot_before = self.pot
+            # Decide tamaño del reraise basado en equity
+            if eq_bot < 0.90:
+                # Reraise medio: 100% pot
+                raise_amount = max(int(pot_before * 1.0), 1)
+                # Asegurarse de no superar el stack
+                raise_amount = min(raise_amount, self.bot_chips - to_call)
+                return Action.RAISE_MEDIUM, raise_amount
+            else:
+                # Equity muy alta => all-in reraise
+                return Action.RAISE_LARGE, self.bot_chips - to_call
+
+        # C) Si no debe pagar (to_call == 0), “abrir” con lógica de tamaño + límite por equity
+        #    Primero bucketizar para estrategia base
+        if km is not None and nodes is not None:
+            feats = hand_to_features_enhanced(
+                hole_cards_numeric,
+                community_numeric,
+                pot=self.pot,
+                history=history_for_bucket,
+                to_act=1
+            )
+            bucket = km.predict(feats.reshape(1, -1))[0]
+            info_set = f"{phase}|{bucket}|{history_for_bucket}"
+            if info_set in nodes:
+                strat = nodes[info_set].get_average_strategy()
+            else:
+                strat = np.ones(NUM_ACTIONS) / NUM_ACTIONS
+            action_idx = np.random.choice(range(NUM_ACTIONS), p=strat)
+            action = Action(action_idx)
         else:
-            strat = np.ones(NUM_ACTIONS) / NUM_ACTIONS
+            action = random.choice(list(Action))
 
-        action_idx = np.random.choice(range(NUM_ACTIONS), p=strat)
-        action = Action(action_idx)
-
-        # Determinar raise_amount según convención
+        # Convención de tamaños si decide abrir
         if action == Action.RAISE_SMALL:
             raise_amount = max(int(self.pot * 0.5), 1)
         elif action == Action.RAISE_MEDIUM:
             raise_amount = max(int(self.pot * 1.0), 1)
         elif action == Action.RAISE_LARGE:
-            # ALL-IN puro: apostará todo lo que le queda
             raise_amount = self.bot_chips
         else:
             raise_amount = None
 
-        # ======== BLOQUE NUEVO: LIMITAR tamaño del raise según equity y porcentaje stack ========
+        # Si abre y su raise supera 40% del stack, verificar equity para ajustar tamaño
         if action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and raise_amount is not None:
-            # Verificar si raise_amount es más del 40% del stack del bot
             if raise_amount > self.bot_chips * 0.4:
-                # Calcular equity real
                 eq_bot = real_equity_estimate(
                     hole_cards_numeric,
                     community_numeric,
-                    num_sim=500  # ajustable para más precisión o rapidez
+                    num_sim=500
                 )
                 pot_before = self.pot
-
                 if eq_bot < 0.50:
-                    # Equity baja: no raise grande, hacemos CALL
                     action = Action.CALL
                     raise_amount = None
                 elif eq_bot < 0.70:
-                    # Equity moderada: limitar a raise pequeño (50% pote)
                     action = Action.RAISE_SMALL
                     raise_amount = max(int(pot_before * 0.5), 1)
                 elif eq_bot < 0.90:
-                    # Equity buena: limitar a raise medio (100% pote)
                     action = Action.RAISE_MEDIUM
                     raise_amount = max(int(pot_before * 1.0), 1)
                 else:
-                    # Equity muy alta: permitir raise grande (all-in)
                     action = Action.RAISE_LARGE
                     raise_amount = self.bot_chips
-        # ======== FIN BLOQUE NUEVO ========
 
         return action, raise_amount
+
+
 
     # --- Obtener quién inicia la ronda de apuestas ---
     def get_first_actor(self):
