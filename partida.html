@@ -80,6 +80,45 @@
     }
 
     /* ----------------------------------------------------------
+       5.1) Mensaje central: "Showdown!" 
+            (exactamente entre bot y comunitarias, sin solaparse)
+    ---------------------------------------------------------- */
+    #showdownCenter {
+      position: absolute;
+      top: 36%;                /* Entre 20% (cartas bot) y 45% (cartas comunitarias) */
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      font-size: 1.3rem;
+      font-weight: bold;
+      text-shadow: 0 0 5px black;
+      color: #ffd700; /* dorado */
+      line-height: 1.4;
+      z-index: 2;
+      white-space: pre-line;
+      min-height: 2rem;        /* Espacio reservado aunque no haya showdown */
+    }
+
+    /* ----------------------------------------------------------
+       5.2) Detalles de las tres líneas (derecha, multilinea)
+            - A la altura de las comunitarias, más apartado
+    ---------------------------------------------------------- */
+    #showdownDetails {
+      position: absolute;
+      top: 50%;                /* Alineado con las comunitarias */
+      right: 1%;               /* Más apartado de las cartas comunitarias */
+      width: 34%;              /* Ancho suficiente para no cortar el texto */
+      font-size: 1.1rem;
+      font-weight: bold;
+      text-shadow: 0 0 4px black;
+      color: #ffd700; /* dorado */
+      line-height: 1.4;
+      z-index: 2;
+      white-space: pre-line;   /* Permite varias líneas */
+      text-align: left;
+    }
+
+    /* ----------------------------------------------------------
        6) Cartas comunitarias (centro de la mesa)
     ---------------------------------------------------------- */
     #communityCards {
@@ -135,22 +174,22 @@
     ---------------------------------------------------------- */
     #actionsContainer {
       position: absolute;
-      bottom: 12%;          /* subido un poco para quedar encima de las cartas */
+      bottom: 12%;          /* un poco más alto para no tapar las cartas */
       left: 50%;
       transform: translateX(-50%);
       display: flex;
       align-items: center;
       gap: 1rem;
-      z-index: 3;           /* más alto que el logContainer */
+      z-index: 3;           /* sobre el logContainer */
     }
     #actionsContainer button {
       background: #006600;
       color: white;
       border: none;
       border-radius: 6px;
-      padding: 0.7rem 1.2rem;    /* botones más grandes */
+      padding: 0.7rem 1.2rem;
       cursor: pointer;
-      font-size: 1.2rem;         /* texto más grande */
+      font-size: 1.2rem;
       box-shadow: 0 2px 4px rgba(0,0,0,0.5);
     }
     #actionsContainer button:disabled {
@@ -176,7 +215,7 @@
       left: 50%;
       transform: translateX(-50%);
       width: 90%;
-      max-height: 20%;            /* menor altura para no tapar botones */
+      max-height: 20%;            /* para no tapar botones ni cartas */
       overflow-y: auto;
       background: rgba(0, 0, 0, 0.6);
       padding: 0.5rem;
@@ -185,7 +224,7 @@
       color: #fff;
       border-top-left-radius: 8px;
       border-top-right-radius: 8px;
-      z-index: 1;                  /* atrás de todo lo demás */
+      z-index: 1;                  /* detrás de todo lo demás */
     }
   </style>
 </head>
@@ -206,6 +245,12 @@
     <!-- 5) Mensaje del bot -->
     <div id="botMessage"></div>
 
+    <!-- 5.1) Mensaje central: "Showdown!" -->
+    <div id="showdownCenter"></div>
+
+    <!-- 5.2) Detalles: ganador, tu mano y mano bot (derecha) -->
+    <div id="showdownDetails"></div>
+
     <!-- 6) Cartas comunitarias -->
     <div id="communityCards"></div>
 
@@ -218,15 +263,15 @@
     <!-- 9) Botones de Fold / Call / Raise + input -->
     <div id="actionsContainer"></div>
 
-    <!-- 10) Contenedor de logs (igual que la consola de práctica) -->
+    <!-- 10) Contenedor de logs (flujo de consola) -->
     <div id="logContainer"></div>
   </div>
 
   <!-- Importamos game.js -->
   <script src="game.js"></script>
   <script>
-    // En el momento “DOMContentLoaded”, arrancamos la partida
-    document.addEventListener("DOMContentLoaded", () => {
+    // Al cargar la página, arrancamos la partida automáticamente
+    document.addEventListener('DOMContentLoaded', () => {
       iniciarPartida();
     });
   </script>
