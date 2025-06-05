@@ -160,18 +160,17 @@ async function sendPlayerAction(action, raise_amount = null) {
 
     // 5.6) Mostrar detalles: ganador, tu mano y mano del bot
     const detalles = [winnerLine, tuMejorLine, botMejorLine]
-      .filter(line => line) // nos quedamos sólo con las líneas que existan
+      .filter(line => line)
       .join("\n");
     showdownDetailsDiv.textContent = detalles;
 
-    // ———> IMPORTANTE: **NO** limpiamos botMessageDiv aquí, 
-    // para que, si el bot hizo fold, su mensaje permanezca visible <———
-    // botMessageDiv.textContent = "";
+    // NOTA: no limpiamos botMessageDiv para que, si hizo fold, se vea ese mensaje.
 
-    // 5.7) Deshabilitamos acciones y habilitamos “Nueva Mano”
+    // 5.7) Deshabilitamos acciones y habilitamos “Nueva Mano” y “Ver Estadísticas”
     enableActions(false);
-    playerMessageDiv.textContent = 'Mano terminada. Pulsa "Nueva Mano" para continuar.';
+    playerMessageDiv.textContent = 'Mano terminada. Elige “Nueva Mano” o “Ver Estadísticas”.';
     newHandBtn.disabled = false;
+    statsBtn.disabled = false;
     return;
   }
 
@@ -193,6 +192,8 @@ async function sendPlayerAction(action, raise_amount = null) {
 // ----------------------------------------------------------
 async function iniciarPartida() {
   newHandBtn.disabled = true;
+  statsBtn.disabled = true;
+
   showdownCenterDiv.textContent  = '';
   showdownDetailsDiv.textContent = '';
   botMessageDiv.textContent      = '';
@@ -229,15 +230,40 @@ async function iniciarPartida() {
 // ----------------------------------------------------------
 const newHandBtn = document.createElement('button');
 newHandBtn.textContent = 'Nueva Mano';
-newHandBtn.style.position = 'absolute';
-newHandBtn.style.top = '5%';
-newHandBtn.style.right = '5%';
-newHandBtn.style.padding = '0.5rem 1rem';
-newHandBtn.style.background = '#006600';
-newHandBtn.style.color = '#fff';
-newHandBtn.style.border = 'none';
-newHandBtn.style.borderRadius = '6px';
-newHandBtn.style.cursor = 'pointer';
-newHandBtn.style.zIndex = '3';
+Object.assign(newHandBtn.style, {
+  position: 'absolute',
+  top: '5%',
+  right: '5%',
+  padding: '0.5rem 1rem',
+  background: '#006600',
+  color: '#fff',
+  border: 'none',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  zIndex: '3'
+});
 newHandBtn.onclick = iniciarPartida;
 document.body.appendChild(newHandBtn);
+
+// ----------------------------------------------------------
+// Botón “Ver Estadísticas” (creado dinámicamente, deshabilitado al inicio)
+// ----------------------------------------------------------
+const statsBtn = document.createElement('button');
+statsBtn.textContent = 'Ver Estadísticas';
+Object.assign(statsBtn.style, {
+  position: 'absolute',
+  top: '5%',
+  right: '150px',       // a la izquierda de “Nueva Mano”
+  padding: '0.5rem 1rem',
+  background: '#004080',
+  color: '#fff',
+  border: 'none',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  zIndex: '3'
+});
+statsBtn.disabled = true;  // se habilita solo al terminar la mano
+statsBtn.onclick = () => {
+  window.location.href = 'stats.html';
+};
+document.body.appendChild(statsBtn);

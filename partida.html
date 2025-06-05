@@ -87,7 +87,7 @@
     ---------------------------------------------------------- */
     #showdownCenter {
       position: absolute;
-      top: 39%;                /* Entre 20% (cartas bot) y 45% (cartas comunitarias) */
+      top: 39%;                /* Ajustado para centrar entre bot y comunitarias */
       left: 50%;
       transform: translateX(-50%);
       text-align: center;
@@ -211,9 +211,9 @@
     }
 
     /* ----------------------------------------------------------
-       (Ya no necesitamos estilos para #logContainer)
+       10) Contenedor de logs (eliminado, ya no se usa)
     ---------------------------------------------------------- */
-    /* #logContainer { ... }  */
+    /* #logContainer { ... } */
   </style>
 </head>
 <body>
@@ -250,10 +250,6 @@
 
     <!-- 9) Botones de Fold / Call / Raise + input -->
     <div id="actionsContainer"></div>
-
-    <!-- Ya no incluimos el contenedor de logs en la parte inferior -->
-    <!-- <div id="logContainer"></div> -->
-
   </div>
 
   <!-- Importamos game.js -->
