@@ -130,26 +130,73 @@
     }
 
     /* ----------------------------------------------------------
-       7) Botones de navegación
+       7) Sección Pot Odds
+    ---------------------------------------------------------- */
+    .pot-odds {
+      margin-top: 1rem;
+    }
+    .pot-odds .label {
+      font-weight: bold;
+      color: #d0d0d0;
+    }
+    .pot-odds .value {
+      color: #ffffff;
+      margin-left: 0.5rem;
+    }
+
+    /* ----------------------------------------------------------
+       8) Botones con estilo “btn”
     ---------------------------------------------------------- */
     .buttons {
       display: flex;
       justify-content: space-between;
       margin-top: 2rem;
     }
-    .buttons button {
-      background: #006600;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 0.7rem 1.5rem;
+
+    .btn {
+      position: relative;
+      font-size: 17px;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 1em 2.5em;
+      display: inline-block;
       cursor: pointer;
-      font-size: 1rem;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-      transition: background 0.2s ease;
+      border-radius: 6em;
+      transition: all 0.2s;
+      border: none;
+      font-family: inherit;
+      font-weight: 500;
+      color: black;
+      background-color: white;
     }
-    .buttons button:hover {
-      background: #008000;
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn:active {
+      transform: translateY(-1px);
+      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn::after {
+      content: "";
+      display: inline-block;
+      height: 100%;
+      width: 100%;
+      border-radius: 100px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      transition: all 0.4s;
+      background-color: #fff;
+    }
+
+    .btn:hover::after {
+      transform: scaleX(1.4) scaleY(1.6);
+      opacity: 0;
     }
   </style>
 </head>
@@ -294,7 +341,7 @@
     <!-- Sección 4: Pot Odds -->
     <div class="section" id="section-pot-odds">
       <h2>Pot Odds</h2>
-      <p>
+      <p class="pot-odds">
         <span class="label">Pot Odds:</span>
         <span class="value" id="pot_odds">–</span>
         <span class="info-icon">ℹ️</span>
@@ -307,8 +354,8 @@
 
     <!-- Botones de Navegación -->
     <div class="buttons">
-      <button onclick="window.location.href='rec.html'">Recomendación</button>
-      <button onclick="window.location.href='partida.html'">Volver a Jugar</button>
+      <button class="btn" onclick="window.location.href='rec.html'">Recomendación</button>
+      <button class="btn" onclick="window.location.href='partida.html'">Volver a Jugar</button>
     </div>
   </div>
 
@@ -345,28 +392,24 @@
 
           // 3) Conteo por calle
           const counts = metrics.counts_per_street;
-          // Preflop
           document.getElementById('pf_folds').textContent  = counts.preflop.folds;
           document.getElementById('pf_calls').textContent  = counts.preflop.calls;
           document.getElementById('pf_checks').textContent = counts.preflop.checks;
           document.getElementById('pf_raises').textContent = counts.preflop.raises;
-          // Flop
           document.getElementById('fl_folds').textContent  = counts.flop.folds;
           document.getElementById('fl_calls').textContent  = counts.flop.calls;
           document.getElementById('fl_checks').textContent = counts.flop.checks;
           document.getElementById('fl_raises').textContent = counts.flop.raises;
-          // Turn
           document.getElementById('turn_folds').textContent  = counts.turn.folds;
           document.getElementById('turn_calls').textContent  = counts.turn.calls;
           document.getElementById('turn_checks').textContent = counts.turn.checks;
           document.getElementById('turn_raises').textContent = counts.turn.raises;
-          // River
           document.getElementById('rv_folds').textContent  = counts.river.folds;
           document.getElementById('rv_calls').textContent  = counts.river.calls;
           document.getElementById('rv_checks').textContent = counts.river.checks;
           document.getElementById('rv_raises').textContent = counts.river.raises;
 
-          // 4) Pot Odds (si la API lo devuelve; de lo contrario, mostrar “–”)
+          // 4) Pot Odds
           document.getElementById('pot_odds').textContent = (
             metrics.pot_odds !== undefined && metrics.pot_odds !== null
               ? (metrics.pot_odds * 100).toFixed(0) + "%"

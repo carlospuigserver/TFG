@@ -6,7 +6,7 @@
   <title>Recomendaciones de Nash</title>
   <style>
     /* ----------------------------------------------------------
-       1) Fondo: imagen de Nash (ajusta la ruta si lo necesitas)
+       1) Fondo: imagen de Nash
     ---------------------------------------------------------- */
     body {
       margin: 0;
@@ -34,7 +34,6 @@
       position: relative;
       text-align: left;
     }
-    /* “Cola” del globo */
     #bubble::after {
       content: "";
       position: absolute;
@@ -69,29 +68,59 @@
       line-height: 1.4;
       position: relative;
     }
-    /* Pequeño icono de bombilla junto a cada recomendación */
     #recsList li::before {
       content: "💡";
       margin-right: 0.5rem;
     }
 
     /* ----------------------------------------------------------
-       5) Botón “Volver a Estadísticas”
+       5) Botón “Volver a Estadísticas” con estilo “btn”
     ---------------------------------------------------------- */
-    #backBtn {
-      margin-top: 1.5rem;
-      background: #006600;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 0.7rem 1.5rem;
+    .btn {
+      position: relative;
+      font-size: 17px;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 1em 2.5em;
+      display: inline-block;
       cursor: pointer;
-      font-size: 1rem;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-      transition: background 0.2s ease;
+      border-radius: 6em;
+      transition: all 0.2s;
+      border: none;
+      font-family: inherit;
+      font-weight: 500;
+      color: black;
+      background-color: white;
+      margin-top: 1.5rem;
     }
-    #backBtn:hover {
-      background: #008000;
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn:active {
+      transform: translateY(-1px);
+      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn::after {
+      content: "";
+      display: inline-block;
+      height: 100%;
+      width: 100%;
+      border-radius: 100px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      transition: all 0.4s;
+      background-color: #fff;
+    }
+
+    .btn:hover::after {
+      transform: scaleX(1.4) scaleY(1.6);
+      opacity: 0;
     }
   </style>
 </head>
@@ -101,12 +130,11 @@
     <ul id="recsList">
       <!-- Las recomendaciones se insertarán aquí -->
     </ul>
-    <button id="backBtn">Volver a Estadísticas</button>
+    <button class="btn" id="backBtn">Volver a Estadísticas</button>
   </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // 1) Llamamos al endpoint que devuelve tanto métricas como recomendaciones
       fetch('/api/last_stats')
         .then(res => res.json())
         .then(data => {
@@ -114,10 +142,8 @@
             alert("Error al obtener datos: " + data.error);
             return;
           }
-          // Esperamos que data.recommendations sea un array de strings
           const recs = data.recommendations || [];
 
-          // 2) Insertar cada recomendación en el <ul id="recsList">
           const ul = document.getElementById('recsList');
           if (recs.length === 0) {
             const li = document.createElement('li');
@@ -135,7 +161,6 @@
           alert("Error al conectar con la API de recomendaciones:\n" + err);
         });
 
-      // 3) Botón “Volver a Estadísticas”
       document.getElementById('backBtn').onclick = () => {
         window.location.href = 'stats.html';
       };

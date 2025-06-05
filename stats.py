@@ -8,6 +8,7 @@ from bucket_features import real_equity_estimate
 LOG_FILE = 'last_hand.log'
 CFR_MODEL_FILE = 'cfr_entreno.pkl'
 
+
 def parse_last_hand():
     """
     Lee last_hand.log y devuelve un dict con la información extraída
@@ -191,6 +192,7 @@ def parse_last_hand():
                 info['showdown']['pot_side'] = int(m_pot.group(3))
                 continue
 
+    # Stacks finales
     for line in reversed(mano_lines):
         m_fs = regex_stacks.search(line)
         if m_fs:
@@ -198,6 +200,7 @@ def parse_last_hand():
             info['stack_bot_post']    = int(m_fs.group(2))
             break
 
+    # Stacks iniciales
     for line in mano_lines:
         m_is = regex_stacks.search(line)
         if m_is:
@@ -274,7 +277,7 @@ def _convertir_cartas(cards_list):
             r = rank_map.get(c[0], None)
             s = suit_map.get(c[1], None)
             if r is not None and s is not None:
-                resultado.append((r,s))
+                resultado.append((r, s))
     return resultado
 
 
@@ -299,13 +302,14 @@ def _get_pot_before(parsed, calle):
         for a in parsed['acciones'][c_prev]:
             pot += a['monto']
     acciones_calle = parsed['acciones'][calle]
-    idx_primera = None
+    # Buscamos índice de la última acción del jugador en esa calle
+    idx_ultima = None
     for idx, a in enumerate(acciones_calle):
         if a['actor'] == 'player':
-            idx_primera = idx
-            break
-    if idx_primera is not None:
-        for i in range(idx_primera):
+            idx_ultima = idx
+    if idx_ultima is not None:
+        # Sumamos todas las apuestas (del bot y del jugador) previas a esa última acción
+        for i in range(idx_ultima):
             pot += acciones_calle[i]['monto']
     return pot
 
@@ -318,14 +322,16 @@ def compute_recommendations(parsed):
     recs = []
 
     for calle in ('preflop', 'flop', 'turn', 'river'):
-        acciones_calle = parsed['acciones'][calle]
-        acciones_player = [a for a in acciones_calle if a['actor'] == 'player']
+        acciones_calle   = parsed['acciones'][calle]
+        acciones_player  = [a for a in acciones_calle if a['actor'] == 'player']
         if not acciones_player:
             continue
 
-        primera = acciones_player[0]
-        tipo    = primera['tipo']   # 'call', 'check', 'fold' o 'raise'
-        monto   = primera['monto']
+        # Ahora tomamos la ÚLTIMA acción del jugador en esa calle,
+        # de modo que capturemos el CALL tras un RAISE del bot.
+        ultima = acciones_player[-1]
+        tipo  = ultima['tipo']   # 'call', 'check', 'fold' o 'raise'
+        monto = ultima['monto']
 
         hole_str, board_str = _cartas_y_tablero(parsed, calle)
         hole_display  = "[" + ", ".join(hole_str) + "]"

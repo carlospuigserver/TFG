@@ -5,19 +5,19 @@ body {
   height: 100vh;
   background: url('inicial.png') no-repeat center center/cover;
   display: flex;
-  align-items: flex-start; /* inicia desde arriba */
   justify-content: center;
+  align-items: center; /* Centra el botón en el medio de la pantalla */
   font-family: "Arial", sans-serif;
 }
 
-/* Contenedor de botones centrado más abajo */
+/* Contenedor de botones */
 .contenedor-botones {
   display: flex;
-  gap: 6rem; /* más separación entre botones */
-  margin-top: 60vh; /* baja el bloque al 60% de la pantalla */
+  gap: 6rem;          /* espacio entre botones (aunque solo hay uno ahora) */
+  margin-top: 0;      /* ya no necesitamos desplazarlo al 60% */
 }
 
-/* === removing default button style === */
+/* === Eliminamos el estilo por defecto de <button> o <a> con clase .button === */
 .button {
   margin: 0;
   height: auto;
@@ -27,7 +27,7 @@ body {
   cursor: pointer;
 }
 
-/* button styling */
+/* Estilos originales del botón con efecto “hover-text” */
 .button {
   --border-right: 6px;
   --text-stroke-color: rgba(255, 255, 255, 0.6);
@@ -43,17 +43,17 @@ body {
   -webkit-text-stroke: 1px var(--text-stroke-color);
 }
 
-/* actual text */
+/* Texto “base” (visible bajo la línea de trazos) */
 .actual-text {
   color: transparent;
   -webkit-text-stroke: 1px var(--text-stroke-color);
 }
 
-/* hover animation text */
+/* Texto que se rellena al hacer hover */
 .hover-text {
   position: absolute;
   box-sizing: border-box;
-  content: attr(data-text);
+  /* content: attr(data-text);   <-- esto se aplica vía HTML */
   color: var(--animation-color);
   width: 0%;
   inset: 0;
@@ -63,6 +63,7 @@ body {
   -webkit-text-stroke: 1px var(--animation-color);
 }
 
+/* Al poner el cursor encima, expandimos el hover-text al 100% */
 .button:hover .hover-text {
   width: 100%;
   filter: drop-shadow(0 0 23px var(--animation-color));
