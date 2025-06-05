@@ -6,7 +6,7 @@
   <title>Recomendaciones de Nash</title>
   <style>
     /* ----------------------------------------------------------
-       1) Fondo: imagen de Nash (puedes ajustar la ruta si está en otra carpeta)
+       1) Fondo: imagen de Nash (ajusta la ruta si lo necesitas)
     ---------------------------------------------------------- */
     body {
       margin: 0;
@@ -69,7 +69,7 @@
       line-height: 1.4;
       position: relative;
     }
-    /* Pequeño icono de bocadillo junto a cada recomendación */
+    /* Pequeño icono de bombilla junto a cada recomendación */
     #recsList li::before {
       content: "💡";
       margin-right: 0.5rem;
@@ -99,14 +99,14 @@
   <div id="bubble">
     <h2>Nash dice:</h2>
     <ul id="recsList">
-      <!-- Aquí se añadirán dinámicamente las recomendaciones -->
+      <!-- Las recomendaciones se insertarán aquí -->
     </ul>
     <button id="backBtn">Volver a Estadísticas</button>
   </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // 1) Primero pedimos métricas + recomendaciones
+      // 1) Llamamos al endpoint que devuelve tanto métricas como recomendaciones
       fetch('/api/last_stats')
         .then(res => res.json())
         .then(data => {
@@ -114,28 +114,22 @@
             alert("Error al obtener datos: " + data.error);
             return;
           }
-          // Si el endpoint devolviera un JSON con 'metrics' y 'recommendations',
-          // habría que hacer fetch a /api/last_stats?recs=true o similar. Pero aquí:
-          // Nuestro endpoint actual (/api/last_stats) SOLO devuelve métricas. Necesitamos 
-          // llamarlo de nuevo a stats.py para obtener las recomendaciones tal y como está en el main.
-          // Dado que nuestro endpoint no devuelve recomendaciones en la ruta /api/last_stats,
-          // vamos a hacer un fetch directo a stats.py ejecutándolo como script (solo en entorno local),
-          // pero en producción se recomendaría exponer otro endpoint. Para simplicidad, asumimos:
-          //
-          // - Cambiamos /api/last_stats para que devuelva también 'recommendations'.
-          //   (Ve más abajo "Ajuste en app.py" si quieres esta ruta unificada.)
-          //
-          // Por ahora, suponemos que /api/last_stats ya devuelve:
-          // { metrics: { … }, recommendations: [ … ] }
+          // Esperamos que data.recommendations sea un array de strings
           const recs = data.recommendations || [];
 
-          // 2) Insertar cada recomendación en el <ul>
+          // 2) Insertar cada recomendación en el <ul id="recsList">
           const ul = document.getElementById('recsList');
-          recs.forEach(texto => {
+          if (recs.length === 0) {
             const li = document.createElement('li');
-            li.textContent = texto;
+            li.textContent = "No hay recomendaciones disponibles para esta mano.";
             ul.appendChild(li);
-          });
+          } else {
+            recs.forEach(texto => {
+              const li = document.createElement('li');
+              li.textContent = texto;
+              ul.appendChild(li);
+            });
+          }
         })
         .catch(err => {
           alert("Error al conectar con la API de recomendaciones:\n" + err);

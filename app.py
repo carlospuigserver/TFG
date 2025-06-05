@@ -295,16 +295,19 @@ def player_action():
     })
 
 @app.route('/api/last_stats', methods=['GET'])
-def get_last_stats():
+def get_last_stats_api():
+    """
+    Ahora llamamos a la función unificada stats.get_last_stats(), que:
+      1) Lee y parsea last_hand.log,
+      2) Calcula métricas (stack pre/post, VPIP, PFR, AF, WTSD, W$SD, etc.),
+      3) Genera recomendaciones calle a calle conforme a la estrategia de Nash.
+    """
     try:
-        parsed = stats.parse_last_hand()
-        metrics = stats.compute_metrics(parsed)
-        recs    = stats.generate_recommendations(parsed, metrics)
-        response = metrics.copy()
-        response['recommendations'] = recs
+        response = stats.get_last_stats()
         return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 def _end_hand_response(all_logs, show_bot_cards=True):
     """

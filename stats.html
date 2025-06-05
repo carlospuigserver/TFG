@@ -238,19 +238,21 @@
           // 1) Stacks y ganancias
           document.getElementById('player_pre').textContent  = metrics.stack_player_pre;
           document.getElementById('player_post').textContent = metrics.stack_player_post;
-          document.getElementById('player_net').textContent  = metrics.net_player >= 0
+          document.getElementById('player_net').textContent  = (metrics.net_player >= 0
             ? "+" + metrics.net_player
-            : metrics.net_player;
+            : metrics.net_player);
           document.getElementById('bot_pre').textContent     = metrics.stack_bot_pre;
           document.getElementById('bot_post').textContent    = metrics.stack_bot_post;
-          document.getElementById('bot_net').textContent     = metrics.net_bot >= 0
+          document.getElementById('bot_net').textContent     = (metrics.net_bot >= 0
             ? "+" + metrics.net_bot
-            : metrics.net_bot;
+            : metrics.net_bot);
 
           // 2) VPIP / PFR / AF / WTSD / W$SD
           document.getElementById('vpip').textContent = metrics.vpip;
           document.getElementById('pfr').textContent  = metrics.pfr;
-          document.getElementById('af').textContent   = metrics.af !== null ? metrics.af.toFixed(2) : '–';
+          document.getElementById('af').textContent   = (metrics.af !== null
+            ? metrics.af.toFixed(2)
+            : '–');
           document.getElementById('wtsd').textContent = metrics.wtsd;
           document.getElementById('wsd').textContent  = metrics.wsd;
 
@@ -278,9 +280,9 @@
           document.getElementById('rv_raises').textContent = counts.river.raises;
 
           // 4) Pot Odds (actualmente null / no calculado)
-          document.getElementById('pot_odds').textContent = metrics.pot_odds !== null
+          document.getElementById('pot_odds').textContent = (metrics.pot_odds !== null
             ? metrics.pot_odds
-            : 'No disponible';
+            : 'No disponible');
         })
         .catch(err => {
           alert("Error al conectar con la API de estadísticas:\n" + err);
