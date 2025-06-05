@@ -51,7 +51,7 @@ function updateStatus() {
   playerChipsSpan.textContent = gameState.player_chips;
   botChipsSpan.textContent    = gameState.bot_chips;
   dealerSpan.textContent      = gameState.dealer;
-  toActSpan.textContent       = gameState.to_act || '–';
+  
 }
 
 // ----------------------------------------------------------
