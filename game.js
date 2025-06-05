@@ -15,39 +15,12 @@ const showdownCenterDiv  = document.getElementById('showdownCenter');
 const showdownDetailsDiv = document.getElementById('showdownDetails');
 const playerMessageDiv   = document.getElementById('playerMessage');
 const actionsContainer   = document.getElementById('actionsContainer');
-const logContainer       = document.getElementById('logContainer');
 
 let gameState = null;
 
-// Botón “Nueva Mano”
-const newHandBtn = document.createElement('button');
-newHandBtn.textContent = 'Nueva Mano';
-newHandBtn.style.position = 'absolute';
-newHandBtn.style.top = '5%';
-newHandBtn.style.right = '5%';
-newHandBtn.style.padding = '0.5rem 1rem';
-newHandBtn.style.background = '#006600';
-newHandBtn.style.color = '#fff';
-newHandBtn.style.border = 'none';
-newHandBtn.style.borderRadius = '6px';
-newHandBtn.style.cursor = 'pointer';
-newHandBtn.style.zIndex = '3';
-newHandBtn.onclick = iniciarPartida;
-document.body.appendChild(newHandBtn);
-
-// ==========================================================
-// FUNCIÓN AUXILIAR PARA LOG EN PANTALLA
-// ==========================================================
-function log(msg) {
-  const p = document.createElement('p');
-  p.textContent = msg;
-  logContainer.appendChild(p);
-  logContainer.scrollTop = logContainer.scrollHeight;
-}
-
-// ==========================================================
-// CONVIERTE UN CÓDIGO DE CARTA (p.ej. "Ac", "Jh", etc.) EN <img>
-// ==========================================================
+// ----------------------------------------------------------
+// Convertir un código de carta (p.ej. "Ac", "Jh", etc.) EN <img>
+// ----------------------------------------------------------
 function cardToImg(card) {
   if (card === "card_back") {
     return '<img src="card_back.png" alt="Carta Oculta" class="card">';
@@ -56,18 +29,18 @@ function cardToImg(card) {
   return `<img src="cards/${filename}" alt="${card}" class="card">`;
 }
 
-// ==========================================================
-// PINTA LAS CARTAS EN PANTALLA (bot, jugador, comunitarias)
-// ==========================================================
+// ----------------------------------------------------------
+// Pinta las cartas en pantalla (bot, jugador, comunitarias)
+// ----------------------------------------------------------
 function renderCards() {
   botCardsDiv.innerHTML       = gameState.bot_hole.map(c => cardToImg(c)).join('');
   playerCardsDiv.innerHTML    = gameState.player_hole.map(c => cardToImg(c)).join('');
   communityCardsDiv.innerHTML = gameState.community_cards.map(c => cardToImg(c)).join('');
 }
 
-// ==========================================================
-// ACTUALIZA LA BARRA DE ESTADO (pot, stacks, dealer, turno)
-// ==========================================================
+// ----------------------------------------------------------
+// Actualiza la barra de estado (pot, stacks, dealer, turno)
+// ----------------------------------------------------------
 function updateStatus() {
   potSpan.textContent         = gameState.pot;
   playerChipsSpan.textContent = gameState.player_chips;
@@ -76,32 +49,22 @@ function updateStatus() {
   toActSpan.textContent       = gameState.to_act || '–';
 }
 
-// ==========================================================
-// LIMPIA ÚNICAMENTE: acciones del jugador + mensaje del jugador.
-// NO BORRA el mensaje del bot ni el showdown.
-// ==========================================================
-function clearPlayerZone() {
-  actionsContainer.innerHTML = '';
-  playerMessageDiv.textContent = '';
-}
-
-// ==========================================================
-// FILTRA ÚLTIMOS MENSAJES (para mostrarlos junto a cada “jugador”)
-//   - lastBotMsg: la última línea que empiece por “bot”
-// ==========================================================
-function updatePlayerMessages(logs) {
+// ----------------------------------------------------------
+// Mostrar la última acción relevante del bot en pantalla
+// (extraída de los logs que devuelve el servidor).
+// ----------------------------------------------------------
+function updateBotMessage(logs) {
   const lastBotMsg = logs.slice().reverse()
     .find(m => m.toLowerCase().startsWith("bot")) || '';
   botMessageDiv.textContent = lastBotMsg;
 }
 
-// ==========================================================
-// HABILITAR/DESHABILITAR BOTONES DE ACCIÓN DEL JUGADOR
-//  - Si enable = true: pinta “Tu turno: elige acción.” Y genera botones.
-//  - Si enable = false: borra botones y limpia mensaje del jugador.
-// ==========================================================
+// ----------------------------------------------------------
+// Habilitar/Deshabilitar botones de acción del jugador
+// ----------------------------------------------------------
 function enableActions(enable) {
-  clearPlayerZone();
+  actionsContainer.innerHTML = '';
+  playerMessageDiv.textContent = '';
 
   if (!enable) return;
 
@@ -137,17 +100,12 @@ function enableActions(enable) {
   actionsContainer.appendChild(btnRaise);
 }
 
-// ==========================================================
-// ENVIAR ACCIÓN DEL JUGADOR AL BACKEND
-//  - action: 'fold', 'call' o 'raise'
-//  - raise_amount: número (solo si action==='raise')
-//  - Procesa logs y showdown
-// ==========================================================
+// ----------------------------------------------------------
+// Enviar acción del jugador al backend
+// ----------------------------------------------------------
 async function sendPlayerAction(action, raise_amount = null) {
-  // 1) Log interno
-  log(`Jugador: ${action}${raise_amount ? ' ' + raise_amount : ''}`);
+  playerMessageDiv.textContent = `Jugador: ${action}${raise_amount ? ' ' + raise_amount : ''}`;
 
-  // 2) Petición al servidor
   const res = await fetch('/api/player_action', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -160,27 +118,19 @@ async function sendPlayerAction(action, raise_amount = null) {
     return;
   }
 
-  // 3) Actualizamos estado local y pintamos cartas/estatus
   gameState = data;
   renderCards();
   updateStatus();
 
-  // 4) Procesamos logs: pintamos en consola y actualizamos mensaje del bot
   if (data.log) {
-    for (const m of data.log) {
-      log(m);
-    }
-    updatePlayerMessages(data.log);
+    updateBotMessage(data.log);
   }
 
-  // 5) Si la mano terminó (hand_ended = true), mostramos showdown
   if (data.hand_ended) {
-    // 5.1) "Showdown!"
     const showdownLine = data.log.find(m =>
       m.toLowerCase().startsWith("showdown")
     ) || "";
 
-    // 5.2) Frase de ganador: jugador, bot o empate (insensible a mayúsculas)
     const winnerLine = data.log.find(m => {
       const low = m.toLowerCase();
       return low.startsWith("¡ganas") ||
@@ -188,55 +138,43 @@ async function sendPlayerAction(action, raise_amount = null) {
              low.includes("empate");
     }) || "";
 
-    // 5.3) "Tu mejor jugada: …"
     const tuMejorLine  = data.log.find(m =>
       m.toLowerCase().startsWith("tu mejor jugada")
     ) || "";
 
-    // 5.4) "Mejor jugada del bot: …"
     const botMejorLine = data.log.find(m =>
       m.toLowerCase().startsWith("mejor jugada del bot")
     ) || "";
 
-    // 5.5) Centro: solo “Showdown!”
     showdownCenterDiv.textContent = showdownLine;
 
-    // 5.6) Derecha: tres líneas (ganador, tu mano, mano bot)
     const detalles = [winnerLine, tuMejorLine, botMejorLine]
-      .filter(line => line)         // sólo incluimos las que existan
+      .filter(line => line)
       .join("\n");
     showdownDetailsDiv.textContent = detalles;
 
-    // 5.7) Limpiamos posible “Esperando acción del bot…”
     botMessageDiv.textContent = "";
-
-    log('Mano terminada.');
     enableActions(false);
     playerMessageDiv.textContent = 'Mano terminada. Pulsa "Nueva Mano" para continuar.';
     newHandBtn.disabled = false;
     return;
   }
 
-  // 6) Si sigue la mano y ahora es turno del jugador:
   if (data.to_act === "player") {
     setTimeout(() => {
       enableActions(true);
     }, 2000);
-  }
-  // 7) Si ahora toca al bot:
-  else {
+  } else {
     enableActions(false);
     botMessageDiv.textContent = 'Esperando acción del bot...';
   }
 }
 
-// ==========================================================
-// INICIAR UNA NUEVA MANO
-//  - Borra logs, showdown y pide /api/start_hand
-// ==========================================================
+// ----------------------------------------------------------
+// Iniciar una nueva mano
+// ----------------------------------------------------------
 async function iniciarPartida() {
   newHandBtn.disabled = true;
-  logContainer.innerHTML         = '';
   showdownCenterDiv.textContent  = '';
   showdownDetailsDiv.textContent = '';
   botMessageDiv.textContent      = '';
@@ -257,10 +195,7 @@ async function iniciarPartida() {
   updateStatus();
 
   if (data.log) {
-    for (const m of data.log) {
-      log(m);
-    }
-    updatePlayerMessages(data.log);
+    updateBotMessage(data.log);
   }
 
   if (gameState.to_act === "player") {
@@ -271,9 +206,20 @@ async function iniciarPartida() {
   }
 }
 
-// ==========================================================
-// AL CARGAR LA PÁGINA, ARRANCAMOS UNA MANO AUTOMÁTICAMENTE
-// ==========================================================
-document.addEventListener('DOMContentLoaded', () => {
-  iniciarPartida();
-});
+// ----------------------------------------------------------
+// Botón “Nueva Mano” (creado dinámicamente)
+// ----------------------------------------------------------
+const newHandBtn = document.createElement('button');
+newHandBtn.textContent = 'Nueva Mano';
+newHandBtn.style.position = 'absolute';
+newHandBtn.style.top = '5%';
+newHandBtn.style.right = '5%';
+newHandBtn.style.padding = '0.5rem 1rem';
+newHandBtn.style.background = '#006600';
+newHandBtn.style.color = '#fff';
+newHandBtn.style.border = 'none';
+newHandBtn.style.borderRadius = '6px';
+newHandBtn.style.cursor = 'pointer';
+newHandBtn.style.zIndex = '3';
+newHandBtn.onclick = iniciarPartida;
+document.body.appendChild(newHandBtn);

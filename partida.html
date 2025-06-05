@@ -77,6 +77,8 @@
       text-shadow: 0 0 4px black;
       min-height: 1.5rem;
       z-index: 2;
+      width: 300px;
+      text-align: center;
     }
 
     /* ----------------------------------------------------------
@@ -167,6 +169,8 @@
       text-shadow: 0 0 4px black;
       min-height: 1.5rem;
       z-index: 2;
+      width: 300px;
+      text-align: center;
     }
 
     /* ----------------------------------------------------------
@@ -180,7 +184,7 @@
       display: flex;
       align-items: center;
       gap: 1rem;
-      z-index: 3;           /* sobre el logContainer */
+      z-index: 3;           /* sobre el resto */
     }
     #actionsContainer button {
       background: #006600;
@@ -207,25 +211,9 @@
     }
 
     /* ----------------------------------------------------------
-       10) Contenedor de logs (flujo de consola) – en la parte inferior
+       (Ya no necesitamos estilos para #logContainer)
     ---------------------------------------------------------- */
-    #logContainer {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 90%;
-      max-height: 20%;            /* para no tapar botones ni cartas */
-      overflow-y: auto;
-      background: rgba(0, 0, 0, 0.6);
-      padding: 0.5rem;
-      font-family: monospace;
-      font-size: 0.9rem;
-      color: #fff;
-      border-top-left-radius: 8px;
-      border-top-right-radius: 8px;
-      z-index: 1;                  /* detrás de todo lo demás */
-    }
+    /* #logContainer { ... }  */
   </style>
 </head>
 <body>
@@ -242,7 +230,7 @@
     <!-- 4) Cartas del bot (boca abajo al inicio) -->
     <div id="botCards"></div>
 
-    <!-- 5) Mensaje del bot -->
+    <!-- 5) Mensaje del bot (solo la última acción relevante) -->
     <div id="botMessage"></div>
 
     <!-- 5.1) Mensaje central: "Showdown!" -->
@@ -257,20 +245,20 @@
     <!-- 7) Cartas del jugador -->
     <div id="playerCards"></div>
 
-    <!-- 8) Mensaje del jugador -->
+    <!-- 8) Mensaje del jugador (solo la última acción relevante) -->
     <div id="playerMessage"></div>
 
     <!-- 9) Botones de Fold / Call / Raise + input -->
     <div id="actionsContainer"></div>
 
-    <!-- 10) Contenedor de logs (flujo de consola) -->
-    <div id="logContainer"></div>
+    <!-- Ya no incluimos el contenedor de logs en la parte inferior -->
+    <!-- <div id="logContainer"></div> -->
+
   </div>
 
   <!-- Importamos game.js -->
   <script src="game.js"></script>
   <script>
-    // Al cargar la página, arrancamos la partida automáticamente
     document.addEventListener('DOMContentLoaded', () => {
       iniciarPartida();
     });
