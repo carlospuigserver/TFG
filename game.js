@@ -104,8 +104,10 @@ function enableActions(enable) {
 // Enviar acción del jugador al backend
 // ----------------------------------------------------------
 async function sendPlayerAction(action, raise_amount = null) {
+  // 1) Mostrar la acción del jugador
   playerMessageDiv.textContent = `Jugador: ${action}${raise_amount ? ' ' + raise_amount : ''}`;
 
+  // 2) Llamada al servidor
   const res = await fetch('/api/player_action', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -118,19 +120,24 @@ async function sendPlayerAction(action, raise_amount = null) {
     return;
   }
 
+  // 3) Actualizamos estado en cliente
   gameState = data;
   renderCards();
   updateStatus();
 
+  // 4) Actualizamos mensaje del bot
   if (data.log) {
     updateBotMessage(data.log);
   }
 
+  // 5) Si la mano terminó (hand_ended = true), mostramos showdown y ganador/fold
   if (data.hand_ended) {
+    // 5.1) Intentamos buscar "Showdown!" en los logs
     const showdownLine = data.log.find(m =>
       m.toLowerCase().startsWith("showdown")
     ) || "";
 
+    // 5.2) Línea con ganador: "¡Ganas..." o "El bot gana..." o "Empate..."
     const winnerLine = data.log.find(m => {
       const low = m.toLowerCase();
       return low.startsWith("¡ganas") ||
@@ -138,33 +145,44 @@ async function sendPlayerAction(action, raise_amount = null) {
              low.includes("empate");
     }) || "";
 
+    // 5.3) "Tu mejor jugada: …"
     const tuMejorLine  = data.log.find(m =>
       m.toLowerCase().startsWith("tu mejor jugada")
     ) || "";
 
+    // 5.4) "Mejor jugada del bot: …"
     const botMejorLine = data.log.find(m =>
       m.toLowerCase().startsWith("mejor jugada del bot")
     ) || "";
 
+    // 5.5) Mostrar "Showdown!" en el centro (si existe)
     showdownCenterDiv.textContent = showdownLine;
 
+    // 5.6) Mostrar detalles: ganador, tu mano y mano del bot
     const detalles = [winnerLine, tuMejorLine, botMejorLine]
-      .filter(line => line)
+      .filter(line => line) // nos quedamos sólo con las líneas que existan
       .join("\n");
     showdownDetailsDiv.textContent = detalles;
 
-    botMessageDiv.textContent = "";
+    // ———> IMPORTANTE: **NO** limpiamos botMessageDiv aquí, 
+    // para que, si el bot hizo fold, su mensaje permanezca visible <———
+    // botMessageDiv.textContent = "";
+
+    // 5.7) Deshabilitamos acciones y habilitamos “Nueva Mano”
     enableActions(false);
     playerMessageDiv.textContent = 'Mano terminada. Pulsa "Nueva Mano" para continuar.';
     newHandBtn.disabled = false;
     return;
   }
 
+  // 6) Si la mano continúa y ahora es el turno del jugador:
   if (data.to_act === "player") {
     setTimeout(() => {
       enableActions(true);
     }, 2000);
-  } else {
+  }
+  // 7) Si ahora toca al bot:
+  else {
     enableActions(false);
     botMessageDiv.textContent = 'Esperando acción del bot...';
   }
