@@ -81,7 +81,33 @@
     }
 
     /* ----------------------------------------------------------
-       5) Tabla de conteo por calle
+       5) Íconos de información y tooltips
+    ---------------------------------------------------------- */
+    .info-icon {
+      display: inline-block;
+      margin-left: 0.3rem;
+      cursor: pointer;
+      color: #a0c4ff;
+    }
+    .tooltip {
+      visibility: hidden;
+      width: 200px;
+      background-color: #333;
+      color: #fff;
+      text-align: left;
+      border-radius: 4px;
+      padding: 0.5rem;
+      position: absolute;
+      z-index: 10;
+      font-size: 0.9rem;
+      line-height: 1.2;
+    }
+    .info-icon:hover + .tooltip {
+      visibility: visible;
+    }
+
+    /* ----------------------------------------------------------
+       6) Tabla de conteo por calle
     ---------------------------------------------------------- */
     table {
       width: 100%;
@@ -104,7 +130,7 @@
     }
 
     /* ----------------------------------------------------------
-       6) Botones de navegación
+       7) Botones de navegación
     ---------------------------------------------------------- */
     .buttons {
       display: flex;
@@ -136,30 +162,85 @@
       <h2>Stack Inicial / Final</h2>
       <div class="metrics-grid">
         <div class="metric-card">
-          <p><span class="label">Jugador Pre:</span><span class="value" id="player_pre">–</span></p>
-          <p><span class="label">Jugador Post:</span><span class="value" id="player_post">–</span></p>
-          <p><span class="label">Ganancia Neta Jugador:</span><span class="value" id="player_net">–</span></p>
+          <p>
+            <span class="label">Jugador Pre:</span>
+            <span class="value" id="player_pre">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">Stack del jugador antes de la mano (después de blinds).</span>
+          </p>
+          <p>
+            <span class="label">Jugador Post:</span>
+            <span class="value" id="player_post">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">Stack del jugador al finalizar la mano.</span>
+          </p>
+          <p>
+            <span class="label">Ganancia Neta Jugador:</span>
+            <span class="value" id="player_net">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">Diferencia entre tu stack final e inicial (positivo si ganaste).</span>
+          </p>
         </div>
         <div class="metric-card">
-          <p><span class="label">Bot Pre:</span><span class="value" id="bot_pre">–</span></p>
-          <p><span class="label">Bot Post:</span><span class="value" id="bot_post">–</span></p>
-          <p><span class="label">Ganancia Neta Bot:</span><span class="value" id="bot_net">–</span></p>
+          <p>
+            <span class="label">Bot Pre:</span>
+            <span class="value" id="bot_pre">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">Stack del bot antes de la mano (después de blinds).</span>
+          </p>
+          <p>
+            <span class="label">Bot Post:</span>
+            <span class="value" id="bot_post">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">Stack del bot al terminar la mano.</span>
+          </p>
+          <p>
+            <span class="label">Ganancia Neta Bot:</span>
+            <span class="value" id="bot_net">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">Diferencia entre el stack final del bot e inicial.</span>
+          </p>
         </div>
       </div>
     </div>
 
-    <!-- Sección 2: VPIP / PFR / AF -->
+    <!-- Sección 2: VPIP / PFR / AF / WTSD / W$SD -->
     <div class="section" id="section-aggression">
-      <h2>VPIP / PFR / AF</h2>
+      <h2>VPIP / PFR / AF / WTSD / W$SD</h2>
       <div class="metrics-grid">
         <div class="metric-card">
-          <p><span class="label">VPIP:</span><span class="value" id="vpip">–</span></p>
-          <p><span class="label">PFR:</span><span class="value" id="pfr">–</span></p>
+          <p>
+            <span class="label">VPIP:</span>
+            <span class="value" id="vpip">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">“Voluntarily Put Money In Pot”: 1 si pusiste dinero preflop, 0 si no.</span>
+          </p>
+          <p>
+            <span class="label">PFR:</span>
+            <span class="value" id="pfr">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">“Preflop Raise”: 1 si hiciste raise preflop, 0 si no.</span>
+          </p>
         </div>
         <div class="metric-card">
-          <p><span class="label">AF (Aggression Factor):</span><span class="value" id="af">–</span></p>
-          <p><span class="label">WTSD:</span><span class="value" id="wtsd">–</span></p>
-          <p><span class="label">W$SD:</span><span class="value" id="wsd">–</span></p>
+          <p>
+            <span class="label">AF:</span>
+            <span class="value" id="af">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">“Aggression Factor”: (#raises) ÷ (#calls) en toda la mano.</span>
+          </p>
+          <p>
+            <span class="label">WTSD:</span>
+            <span class="value" id="wtsd">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">“Went To Showdown”: 1 si llegaste al showdown, 0 si te retiraste antes.</span>
+          </p>
+          <p>
+            <span class="label">W$SD:</span>
+            <span class="value" id="wsd">–</span>
+            <span class="info-icon">ℹ️</span>
+            <span class="tooltip">“Won $ At Showdown”: 1 si ganaste en el showdown, 0 si no.</span>
+          </p>
         </div>
       </div>
     </div>
@@ -210,11 +291,18 @@
       </table>
     </div>
 
-    <!-- Sección 4: Pot Odds (si se desea implementar) -->
-    <!-- Actualmente placeholder -->
+    <!-- Sección 4: Pot Odds -->
     <div class="section" id="section-pot-odds">
       <h2>Pot Odds</h2>
-      <p id="pot_odds">No disponible</p>
+      <p>
+        <span class="label">Pot Odds:</span>
+        <span class="value" id="pot_odds">–</span>
+        <span class="info-icon">ℹ️</span>
+        <span class="tooltip">
+          Pot Odds = (Coste del call) ÷ (Pote total tras tu call). 
+          Si equity < pot odds, conviene foldear; si equity ≥ pot odds, conviene pagar.
+        </span>
+      </p>
     </div>
 
     <!-- Botones de Navegación -->
@@ -225,7 +313,6 @@
   </div>
 
   <script>
-    // Al cargar la página, pedimos las métricas a la API y rellenamos los campos.
     document.addEventListener('DOMContentLoaded', () => {
       fetch('/api/last_stats')
         .then(res => res.json())
@@ -279,10 +366,12 @@
           document.getElementById('rv_checks').textContent = counts.river.checks;
           document.getElementById('rv_raises').textContent = counts.river.raises;
 
-          // 4) Pot Odds (actualmente null / no calculado)
-          document.getElementById('pot_odds').textContent = (metrics.pot_odds !== null
-            ? metrics.pot_odds
-            : 'No disponible');
+          // 4) Pot Odds (si la API lo devuelve; de lo contrario, mostrar “–”)
+          document.getElementById('pot_odds').textContent = (
+            metrics.pot_odds !== undefined && metrics.pot_odds !== null
+              ? (metrics.pot_odds * 100).toFixed(0) + "%"
+              : '–'
+          );
         })
         .catch(err => {
           alert("Error al conectar con la API de estadísticas:\n" + err);
