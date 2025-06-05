@@ -1,5 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 import pickle
+import os
+import stats
 from practica2 import PokerGame, Action
 
 app = Flask(__name__, static_folder='.')
@@ -8,6 +10,7 @@ with open('cfr_entreno.pkl', 'rb') as f:
     trainer = pickle.load(f)
 
 game = None
+current_hand_logs = []  # Acumulará todas las líneas de log de la mano en curso
 
 def action_str_to_enum(action_str):
     mapping = {
@@ -38,12 +41,13 @@ def format_chips():
 
 @app.route('/api/start_hand', methods=['POST'])
 def start_hand():
-    global game
+    global game, current_hand_logs
     game = PokerGame()
     started = game.start_hand()
     if not started:
         return jsonify({'error': 'No hay fichas para las blinds.'}), 400
 
+    # Construimos los logs iniciales de la mano
     logs = [
         f"Dealer: {game.dealer} -> SB={game.small_blind}, BB={game.big_blind}",
         format_chips(),
@@ -53,6 +57,9 @@ def start_hand():
         format_chips(),
         f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---"
     ]
+
+    # Reiniciamos y almacenamos los logs de esta nueva mano
+    current_hand_logs = logs.copy()
 
     return jsonify({
         'player_hole': game.player_hole,
@@ -71,7 +78,7 @@ def start_hand():
 
 @app.route('/api/player_action', methods=['POST'])
 def player_action():
-    global game
+    global game, current_hand_logs
     if game is None:
         return jsonify({'error': 'No hay juego activo.'}), 400
 
@@ -88,6 +95,7 @@ def player_action():
     if action == Action.RAISE_MEDIUM and 'r' in game.history and bets_equal:
         return jsonify({'error': 'No se permite hacer reraise si las apuestas están igualadas.'}), 400
 
+    # Log local para esta petición
     logs = []
 
     # Acción del jugador
@@ -98,7 +106,7 @@ def player_action():
         logs.append("Player va ALL-IN!")
 
     if action == Action.CALL and (game.current_bet - game.player_current_bet) == 0:
-        logs.append(f"Player hace CHECK.")
+        logs.append("Player hace CHECK.")
     elif action == Action.CALL:
         pay = game.current_bet - game.player_current_bet if game.current_bet - game.player_current_bet > 0 else 0
         logs.append(f"Player hace CALL de {pay} fichas.")
@@ -108,9 +116,13 @@ def player_action():
         total_raise = raise_amount + (game.current_bet - game.player_current_bet if game.current_bet - game.player_current_bet > 0 else 0)
         logs.append(f"Player hace RAISE de {total_raise} fichas (incluyendo call).")
 
+    # Añadimos estos logs al acumulador de la mano
+    current_hand_logs.extend(logs)
+
     if ended:
         logs.append("Jugador se retiró. Bot gana la mano.")
-        return _end_hand_response(logs, show_bot_cards=False)
+        current_hand_logs.append("Jugador se retiró. Bot gana la mano.")
+        return _end_hand_response(current_hand_logs, show_bot_cards=False)
 
     # Acción del bot
     bot_action, bot_raise = game.bot_decide_action(trainer)
@@ -143,9 +155,13 @@ def player_action():
         total_raise_bot = bot_raise if bot_raise else 0
         logs.append(f"Bot hace RAISE de {total_raise_bot} fichas (incluyendo call).")
 
+    # Añadimos logs del bot al acumulador de la mano
+    current_hand_logs.extend(logs)
+
     if ended_bot:
-        logs.append("Bot se retiró. Tú ganas la mano.")
-        return _end_hand_response(logs, show_bot_cards=False)
+        logs.append("Bot se retira. Tú ganas la mano.")
+        current_hand_logs.append("Bot se retira. Tú ganas la mano.")
+        return _end_hand_response(current_hand_logs, show_bot_cards=False)
 
     # --- Lógica de manejo de ALL-IN ---
     player_allin = (game.player_chips == 0)
@@ -155,6 +171,7 @@ def player_action():
     # Caso: ambos all-in o uno all-in con apuestas igualadas -> Revelar cartas y showdown
     if (player_allin and bot_allin) or ((player_allin or bot_allin) and bets_equal):
         logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
+        current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
         game.reveal_remaining_community_cards()
         player_best = game.evaluate_hand7(game.player_hole + game.community_cards)
         bot_best = game.evaluate_hand7(game.bot_hole + game.community_cards)
@@ -170,47 +187,49 @@ def player_action():
 
         cmp = game.compare_hands(player_best, bot_best)
 
-        logs.append("Showdown!")
-        logs.append(f"Tus cartas: {game.player_hole} + Comunidad: {game.community_cards}")
-        logs.append(f"Cartas del bot: {game.bot_hole} + Comunidad: {game.community_cards}")
-        logs.append(f"Tu mejor jugada: {player_desc}")
-        logs.append(f"Mejor jugada del bot: {bot_desc}")
-        logs.append(f"-- Pot total: {game.pot} fichas (Main Pot={main_pot}, Side Pot={side_pot})")
+        showdown_logs = [
+            "Showdown!",
+            f"Tus cartas: {game.player_hole} + Comunidad: {game.community_cards}",
+            f"Cartas del bot: {game.bot_hole} + Comunidad: {game.community_cards}",
+            f"Tu mejor jugada: {player_desc}",
+            f"Mejor jugada del bot: {bot_desc}",
+            f"-- Pot total: {game.pot} fichas (Main Pot={main_pot}, Side Pot={side_pot})"
+        ]
 
         if cmp > 0:
-            logs.append(f"¡Ganas la mano y te llevas el MAIN POT de {main_pot} fichas!")
+            showdown_logs.append(f"¡Ganas la mano y te llevas el MAIN POT de {main_pot} fichas!")
             game.player_chips += main_pot
             if side_pot > 0:
                 if contrib_player > contrib_bot:
-                    logs.append(f"El SIDE POT ({side_pot} fichas) lo ganas tú porque aportaste más.")
+                    showdown_logs.append(f"El SIDE POT ({side_pot} fichas) lo ganas tú porque aportaste más.")
                     game.player_chips += side_pot
                 else:
-                    logs.append(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
+                    showdown_logs.append(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
                     game.bot_chips += side_pot
             winner = "player"
         elif cmp < 0:
             total_win = main_pot + side_pot
-            logs.append(f"El bot gana la mano y se lleva MAIN+SIDE POT: {total_win} fichas.")
+            showdown_logs.append(f"El bot gana la mano y se lleva MAIN+SIDE POT: {total_win} fichas.")
             game.bot_chips += total_win
             winner = "bot"
         else:
             half_main = main_pot // 2
-            logs.append(f"Empate. Se reparte MAIN POT: cada uno recibe {half_main} fichas.")
+            showdown_logs.append(f"Empate. Se reparte MAIN POT: cada uno recibe {half_main} fichas.")
             game.player_chips += half_main
             game.bot_chips += half_main
             if side_pot > 0:
-                logs.append(f"El SIDE POT ({side_pot} fichas) va al que aportó más.")
+                showdown_logs.append(f"El SIDE POT ({side_pot} fichas) va al que aportó más.")
                 if contrib_bot > contrib_player:
                     game.bot_chips += side_pot
                 else:
                     game.player_chips += side_pot
             winner = "tie"
 
-        logs.append(format_chips())
+        showdown_logs.append(format_chips())
+        current_hand_logs.extend(showdown_logs)
 
         game.pot = 0
-
-        return _end_hand_response(logs, show_bot_cards=True)
+        return _end_hand_response(current_hand_logs, show_bot_cards=True)
 
     # Continuar la mano normalmente
     bets_equal = (game.player_current_bet == game.bot_current_bet)
@@ -219,15 +238,22 @@ def player_action():
         if game.street_index < 4:
             game.next_street()
             calles = ["Preflop", "Flop", "Turn", "River", "Showdown"]
-            logs.append(f"Ronda de apuestas completada.")
-            logs.append(format_chips())
+            street_logs = [
+                "Ronda de apuestas completada.",
+                format_chips()
+            ]
             if game.street_index < 4:
-                logs.append(f"{calles[game.street_index]}: "
-                            f"{game.community_cards[:3] if game.street_index>=1 else []}"
-                            f"{game.community_cards[3:4] if game.street_index>=2 else []}"
-                            f"{game.community_cards[4:5] if game.street_index>=3 else []}")
-            logs.append(format_chips())
-            logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
+                street_logs.append(
+                    f"{calles[game.street_index]}: "
+                    f"{game.community_cards[:3] if game.street_index>=1 else []}"
+                    f"{game.community_cards[3:4] if game.street_index>=2 else []}"
+                    f"{game.community_cards[4:5] if game.street_index>=3 else []}"
+                )
+            street_logs.extend([
+                format_chips(),
+                f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---"
+            ])
+            current_hand_logs.extend(street_logs)
 
     # Showdown normal en river si no hubo all-in
     if game.street_index == 4:
@@ -245,47 +271,49 @@ def player_action():
 
         cmp = game.compare_hands(player_best, bot_best)
 
-        logs.append("Showdown!")
-        logs.append(f"Tus cartas: {game.player_hole} + Comunidad: {game.community_cards}")
-        logs.append(f"Cartas del bot: {game.bot_hole} + Comunidad: {game.community_cards}")
-        logs.append(f"Tu mejor jugada: {player_desc}")
-        logs.append(f"Mejor jugada del bot: {bot_desc}")
-        logs.append(f"-- Pot total: {game.pot} fichas (Main Pot={main_pot}, Side Pot={side_pot})")
+        showdown_logs = [
+            "Showdown!",
+            f"Tus cartas: {game.player_hole} + Comunidad: {game.community_cards}",
+            f"Cartas del bot: {game.bot_hole} + Comunidad: {game.community_cards}",
+            f"Tu mejor jugada: {player_desc}",
+            f"Mejor jugada del bot: {bot_desc}",
+            f"-- Pot total: {game.pot} fichas (Main Pot={main_pot}, Side Pot={side_pot})"
+        ]
 
         if cmp > 0:
-            logs.append(f"¡Ganas la mano y te llevas el MAIN POT de {main_pot} fichas!")
+            showdown_logs.append(f"¡Ganas la mano y te llevas el MAIN POT de {main_pot} fichas!")
             game.player_chips += main_pot
             if side_pot > 0:
                 if contrib_player > contrib_bot:
-                    logs.append(f"El SIDE POT ({side_pot} fichas) lo ganas tú porque aportaste más.")
+                    showdown_logs.append(f"El SIDE POT ({side_pot} fichas) lo ganas tú porque aportaste más.")
                     game.player_chips += side_pot
                 else:
-                    logs.append(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
+                    showdown_logs.append(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
                     game.bot_chips += side_pot
             winner = "player"
         elif cmp < 0:
             total_win = main_pot + side_pot
-            logs.append(f"El bot gana la mano y se lleva MAIN+SIDE POT: {total_win} fichas.")
+            showdown_logs.append(f"El bot gana la mano y se lleva MAIN+SIDE POT: {total_win} fichas.")
             game.bot_chips += total_win
             winner = "bot"
         else:
             half_main = main_pot // 2
-            logs.append(f"Empate. Se reparte MAIN POT: cada uno recibe {half_main} fichas.")
+            showdown_logs.append(f"Empate. Se reparte MAIN POT: cada uno recibe {half_main} fichas.")
             game.player_chips += half_main
             game.bot_chips += half_main
             if side_pot > 0:
-                logs.append(f"El SIDE POT ({side_pot} fichas) va al que aportó más.")
+                showdown_logs.append(f"El SIDE POT ({side_pot} fichas) va al que aportó más.")
                 if contrib_bot > contrib_player:
                     game.bot_chips += side_pot
                 else:
                     game.player_chips += side_pot
             winner = "tie"
 
-        logs.append(format_chips())
+        showdown_logs.append(format_chips())
+        current_hand_logs.extend(showdown_logs)
 
         game.pot = 0
-
-        return _end_hand_response(logs, show_bot_cards=True)
+        return _end_hand_response(current_hand_logs, show_bot_cards=True)
 
     bot_cards_display = ["card_back", "card_back"]
 
@@ -308,8 +336,28 @@ def player_action():
         'hand_ended': False
     })
 
-def _end_hand_response(logs, show_bot_cards=True):
-    global game
+@app.route('/api/last_stats', methods=['GET'])
+def get_last_stats():
+    try:
+        parsed = stats.parse_last_hand()
+        metrics = stats.compute_metrics(parsed)
+        return jsonify(metrics)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def _end_hand_response(all_logs, show_bot_cards=True):
+    global game, current_hand_logs
+
+    # --------------------------------------------------------
+    # Guardamos en disco el log completo de la última mano
+    # --------------------------------------------------------
+    try:
+        with open('last_hand.log', 'w', encoding='utf-8') as f:
+            for line in all_logs:
+                f.write(line + "\n")
+    except Exception as e:
+        print("ERROR al guardar last_hand.log:", e)
+
     bot_cards = game.bot_hole if show_bot_cards else ["card_back", "card_back"]
     resp = {
         'player_hole': game.player_hole,
@@ -322,10 +370,11 @@ def _end_hand_response(logs, show_bot_cards=True):
         'street_index': game.street_index,
         'history': game.history,
         'to_act': None,
-        'log': logs,
+        'log': all_logs,
         'hand_ended': True
     }
     game = None
+    current_hand_logs = []  # Limpiamos para la próxima mano
     return jsonify(resp)
 
 if __name__ == '__main__':
