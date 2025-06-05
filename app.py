@@ -125,8 +125,10 @@ def player_action():
         return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
 
     # 5) Si el jugador acaba de CALL tras un RAISE del bot, la ronda termina YA y NO debe actuar el bot
+    #    Pero si eso ocurre en River (street_index == 3), en lugar de next_street -> showdown.
     if action == Action.CALL and to_call > 0 and game.history.endswith('c'):
-        if game.street_index < 4:
+        if game.street_index < 3:
+            # Avanzar a la siguiente ronda normalmente
             game.next_street()
             street_logs = ["Ronda de apuestas completada."]
             if game.street_index == 1:
@@ -136,32 +138,37 @@ def player_action():
             elif game.street_index == 3:
                 street_logs.append(f"River: {game.community_cards[:5]}")
             street_logs.append(format_chips())
-            if game.street_index < 4:
-                street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
+            street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
             current_hand_logs.extend(street_logs)
 
-        return jsonify({
-            'player_hole': game.player_hole,
-            'bot_hole': ["card_back", "card_back"],
-            'community_cards': (
-                (game.community_cards[:3] if game.street_index >= 1 else []) +
-                (game.community_cards[3:4] if game.street_index >= 2 else []) +
-                (game.community_cards[4:5] if game.street_index >= 3 else [])
-            ),
-            'pot': game.pot,
-            'player_chips': game.player_chips,
-            'bot_chips': game.bot_chips,
-            'dealer': game.dealer,
-            'street_index': game.street_index,
-            'history': game.history,
-            'to_act': "player",
-            'log': current_hand_logs.copy(),
-            'hand_ended': False
-        })
+            return jsonify({
+                'player_hole': game.player_hole,
+                'bot_hole': ["card_back", "card_back"],
+                'community_cards': (
+                    (game.community_cards[:3] if game.street_index >= 1 else []) +
+                    (game.community_cards[3:4] if game.street_index >= 2 else []) +
+                    (game.community_cards[4:5] if game.street_index >= 3 else [])
+                ),
+                'pot': game.pot,
+                'player_chips': game.player_chips,
+                'bot_chips': game.bot_chips,
+                'dealer': game.dealer,
+                'street_index': game.street_index,
+                'history': game.history,
+                'to_act': "player",
+                'log': current_hand_logs.copy(),
+                'hand_ended': False
+            })
+
+        else:
+            # Si estábamos en River (street_index == 3), avanzamos a showdown directamente
+            current_hand_logs.append("Ronda de apuestas completada.")
+            return _resolve_showdown(current_hand_logs.copy())
 
     # 6) Detección de “check–check” para avanzar ronda sin invocar al bot
+    #    (mismo ajuste: si avanza desde River a showdown, invocar showdown)
     if game.current_bet == 0 and len(game.history) >= 2 and all(ch == 'c' for ch in game.history[-2:]):
-        if game.street_index < 4:
+        if game.street_index < 3:
             game.next_street()
             street_logs = ["Ronda de apuestas completada."]
             if game.street_index == 1:
@@ -171,30 +178,33 @@ def player_action():
             elif game.street_index == 3:
                 street_logs.append(f"River: {game.community_cards[:5]}")
             street_logs.append(format_chips())
-            if game.street_index < 4:
-                street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
+            street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
             current_hand_logs.extend(street_logs)
 
-        return jsonify({
-            'player_hole': game.player_hole,
-            'bot_hole': ["card_back", "card_back"],
-            'community_cards': (
-                (game.community_cards[:3] if game.street_index >= 1 else []) +
-                (game.community_cards[3:4] if game.street_index >= 2 else []) +
-                (game.community_cards[4:5] if game.street_index >= 3 else [])
-            ),
-            'pot': game.pot,
-            'player_chips': game.player_chips,
-            'bot_chips': game.bot_chips,
-            'dealer': game.dealer,
-            'street_index': game.street_index,
-            'history': game.history,
-            'to_act': "player",
-            'log': current_hand_logs.copy(),
-            'hand_ended': False
-        })
+            return jsonify({
+                'player_hole': game.player_hole,
+                'bot_hole': ["card_back", "card_back"],
+                'community_cards': (
+                    (game.community_cards[:3] if game.street_index >= 1 else []) +
+                    (game.community_cards[3:4] if game.street_index >= 2 else []) +
+                    (game.community_cards[4:5] if game.street_index >= 3 else [])
+                ),
+                'pot': game.pot,
+                'player_chips': game.player_chips,
+                'bot_chips': game.bot_chips,
+                'dealer': game.dealer,
+                'street_index': game.street_index,
+                'history': game.history,
+                'to_act': "player",
+                'log': current_hand_logs.copy(),
+                'hand_ended': False
+            })
+        else:
+            # Estábamos en River, así que ahora toca showdown
+            current_hand_logs.append("Ronda de apuestas completada.")
+            return _resolve_showdown(current_hand_logs.copy())
 
-    # 7) Acción del bot (solo si no entramos en “CALL tras RAISE”)
+    # 7) Acción del bot (solo si no entramos en “CALL tras RAISE” ni “check–check”)
     bot_logs = []
     bot_action, bot_raise = game.bot_decide_action(trainer)
 
@@ -231,6 +241,7 @@ def player_action():
         return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
 
     # 8) Lógica de ALL-IN / avance de ronda tras acción del bot
+    #    (si pasamos de River a showdown, invocar _resolve_showdown)
     player_allin = (game.player_chips == 0)
     bot_allin = (game.bot_chips == 0)
     bets_equal = (game.player_current_bet == game.bot_current_bet)
@@ -242,7 +253,7 @@ def player_action():
     # 9) Avanzar de ronda si apuestas igualadas y ambos han actuado (>= 2 acciones)
     bets_equal = (game.player_current_bet == game.bot_current_bet)
     if bets_equal and len(game.history) >= 2:
-        if game.street_index < 4:
+        if game.street_index < 3:
             game.next_street()
             street_logs = ["Ronda de apuestas completada."]
             if game.street_index == 1:
@@ -252,11 +263,34 @@ def player_action():
             elif game.street_index == 3:
                 street_logs.append(f"River: {game.community_cards[:5]}")
             street_logs.append(format_chips())
-            if game.street_index < 4:
-                street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
+            street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
             current_hand_logs.extend(street_logs)
 
-    # 10) Showdown normal en river si no hubo all-in
+            # Devolvemos el estado para la nueva ronda
+            return jsonify({
+                'player_hole': game.player_hole,
+                'bot_hole': ["card_back", "card_back"],
+                'community_cards': (
+                    (game.community_cards[:3] if game.street_index >= 1 else []) +
+                    (game.community_cards[3:4] if game.street_index >= 2 else []) +
+                    (game.community_cards[4:5] if game.street_index >= 3 else [])
+                ),
+                'pot': game.pot,
+                'player_chips': game.player_chips,
+                'bot_chips': game.bot_chips,
+                'dealer': game.dealer,
+                'street_index': game.street_index,
+                'history': game.history,
+                'to_act': game.get_first_actor(),
+                'log': current_hand_logs.copy(),
+                'hand_ended': False
+            })
+        else:
+            # Si estábamos en River (street_index == 3), invocar showdown
+            current_hand_logs.append("Ronda de apuestas completada.")
+            return _resolve_showdown(current_hand_logs.copy())
+
+    # 10) Showdown normal en river si no hubo all-in y no se avanzó antes
     if game.street_index == 4:
         return _resolve_showdown(current_hand_logs.copy())
 
@@ -275,7 +309,7 @@ def player_action():
         'dealer': game.dealer,
         'street_index': game.street_index,
         'history': game.history,
-        'to_act': "player",
+        'to_act': game.get_first_actor(),
         'log': current_hand_logs.copy(),
         'hand_ended': False
     })
