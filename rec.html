@@ -6,132 +6,110 @@
   <title>Recomendaciones de Nash</title>
   <style>
     /* ----------------------------------------------------------
-       1) Fondo: imagen de Nash
+       1) Forzar que html/body llenen el viewport
+    ---------------------------------------------------------- */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #000; /* Color de fondo para “letterboxing” */
+    }
+
+    /* ----------------------------------------------------------
+       2) El fondo (imagen del profesor) se muestra en su aspecto
+          (ratio) original, centrado y “encajado” dentro del viewport.
+          Se usa background-size: 100% 100% para asegurar cobertura total.
     ---------------------------------------------------------- */
     body {
       margin: 0;
       padding: 0;
-      background: url("Nash.png") no-repeat center center / cover;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-family: 'Comic Sans MS', 'Chalkboard SE', 'Segoe UI', sans-serif;
-      color: #111;
-    }
-
-    /* ----------------------------------------------------------
-       2) Contenedor principal semitransparente (globo de cómic)
-    ---------------------------------------------------------- */
-    #bubble {
-      background: rgba(255, 255, 255, 0.9);
-      border: 3px solid #333;
-      border-radius: 16px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-      padding: 2rem;
-      width: 80%;
-      max-width: 600px;
+      background: url("Nash.png") no-repeat center center;
+      background-size: 100% 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: white;
       position: relative;
-      text-align: left;
+      overflow: hidden;
     }
-    #bubble::after {
-      content: "";
+
+    /* ----------------------------------------------------------
+       3) Contenedor de recomendaciones, posicionado sobre la zona
+          de la pizarra. Ajusta 'left' y 'top' para alinear con la pizarra.
+    ---------------------------------------------------------- */
+    #boardOverlay {
       position: absolute;
-      bottom: -30px;
-      left: 50px;
-      border-width: 20px 15px 0 15px;
-      border-style: solid;
-      border-color: rgba(255,255,255,0.9) transparent transparent transparent;
+      left: 52%;   /* Ajusta para situar sobre la pizarra */
+      top: 15%;    /* Ajusta para situar sobre la pizarra */
+      width: 40%;  /* Ancho del bloque de texto */
+      max-height: 70%;
+      overflow-y: auto;
+      padding-right: 1rem;
+      /* Efecto de “tiza”: ligero halo oscuro */
+      text-shadow:
+        0 0 2px rgba(0,0,0,0.7),
+        0 0 6px rgba(0,0,0,0.5);
     }
 
     /* ----------------------------------------------------------
-       3) Título “Nash dice...” dentro del globo
+       4) Estilo de cada recomendación como línea “escrita” en la pizarra.
+          Agregamos un guion al inicio mediante CSS ::before.
     ---------------------------------------------------------- */
-    #bubble h2 {
-      margin-top: 0;
-      font-size: 1.5rem;
-      color: #333;
-      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
-    }
-
-    /* ----------------------------------------------------------
-       4) Lista de recomendaciones
-    ---------------------------------------------------------- */
-    #recsList {
-      margin-top: 1rem;
-      list-style: none;
-      padding-left: 0;
-    }
-    #recsList li {
-      margin-bottom: 0.8rem;
-      font-size: 1.1rem;
+    #boardOverlay p {
+      position: relative;
+      margin: 0.6rem 0;
+      font-size: 1.2rem;
       line-height: 1.4;
-      position: relative;
+      /* Fuente monoespaciada para simular tiza */
+      font-family: 'Courier New', Courier, monospace;
+      /* Añadimos un guion antes de cada párrafo */
     }
-    #recsList li::before {
-      content: "💡";
-      margin-right: 0.5rem;
+    #boardOverlay p::before {
+      content: "– ";   /* Un guion y un espacio */
+      position: absolute;
+      left: -1.2rem;   /* Lo desplazamos ligeramente a la izquierda */
+      top: 0;
+      font-size: 1.2rem;
+      color: white;
     }
 
     /* ----------------------------------------------------------
-       5) Botón “Volver a Estadísticas” con estilo “btn”
+       5) Estilo del “salto de fase”: párrafo en blanco para separación
     ---------------------------------------------------------- */
-    .btn {
-      position: relative;
-      font-size: 17px;
-      text-transform: uppercase;
-      text-decoration: none;
-      padding: 1em 2.5em;
-      display: inline-block;
-      cursor: pointer;
-      border-radius: 6em;
-      transition: all 0.2s;
-      border: none;
-      font-family: inherit;
-      font-weight: 500;
-      color: black;
-      background-color: white;
-      margin-top: 1.5rem;
+    .phase-gap {
+      margin: 1.2rem 0; /* Ajusta el espacio vertical que desees */
+      height: 0;
     }
 
-    .btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-    }
-
-    .btn:active {
-      transform: translateY(-1px);
-      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
-    }
-
-    .btn::after {
-      content: "";
-      display: inline-block;
-      height: 100%;
-      width: 100%;
-      border-radius: 100px;
+    /* ----------------------------------------------------------
+       6) Botón “Volver a Estadísticas” discreto en esquina inferior derecha
+    ---------------------------------------------------------- */
+    #backBtn {
       position: absolute;
-      top: 0;
-      left: 0;
-      z-index: -1;
-      transition: all 0.4s;
-      background-color: #fff;
+      bottom: 2%;
+      right: 5%;
+      background: rgba(255, 255, 255, 0.8);
+      border: none;
+      border-radius: 4px;
+      padding: 0.6rem 1.2rem;
+      font-size: 0.9rem;
+      color: #333;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
     }
-
-    .btn:hover::after {
-      transform: scaleX(1.4) scaleY(1.6);
-      opacity: 0;
+    #backBtn:hover {
+      background: rgba(255, 255, 255, 1);
+      transform: translateY(-2px);
     }
   </style>
 </head>
+
 <body>
-  <div id="bubble">
-    <h2>Nash dice:</h2>
-    <ul id="recsList">
-      <!-- Las recomendaciones se insertarán aquí -->
-    </ul>
-    <button class="btn" id="backBtn">Volver a Estadísticas</button>
+  <!-- Contenedor de texto sobre la pizarra -->
+  <div id="boardOverlay">
+    <!-- Aquí se inyectan dinámicamente las recomendaciones -->
   </div>
+
+  <!-- Botón para regresar a estadísticas -->
+  <button id="backBtn">Volver a Estadísticas</button>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -143,19 +121,36 @@
             return;
           }
           const recs = data.recommendations || [];
+          const overlay = document.getElementById('boardOverlay');
 
-          const ul = document.getElementById('recsList');
           if (recs.length === 0) {
-            const li = document.createElement('li');
-            li.textContent = "No hay recomendaciones disponibles para esta mano.";
-            ul.appendChild(li);
-          } else {
-            recs.forEach(texto => {
-              const li = document.createElement('li');
-              li.textContent = texto;
-              ul.appendChild(li);
-            });
+            const p = document.createElement('p');
+            p.textContent = "No hay recomendaciones disponibles para esta mano.";
+            overlay.appendChild(p);
+            return;
           }
+
+          // Para insertar un pequeño “gap” cada vez que cambie la fase:
+          let prevPhase = null;
+
+          recs.forEach(texto => {
+            // Extraemos la fase inicial de la línea: “En PREFLOP, …” → phase = "preflop"
+            const m = texto.match(/^En\s+(\w+)/i);
+            let currentPhase = m ? m[1].toLowerCase() : null;
+
+            // Si la fase cambió, insertamos un párrafo vacío para separar visualmente
+            if (currentPhase && prevPhase && currentPhase !== prevPhase) {
+              const gap = document.createElement('p');
+              gap.className = 'phase-gap';
+              overlay.appendChild(gap);
+            }
+            prevPhase = currentPhase || prevPhase;
+
+            // Creamos el párrafo con la recomendación, el guion se añade via CSS ::before
+            const p = document.createElement('p');
+            p.textContent = texto;
+            overlay.appendChild(p);
+          });
         })
         .catch(err => {
           alert("Error al conectar con la API de recomendaciones:\n" + err);

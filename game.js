@@ -16,6 +16,11 @@ const showdownDetailsDiv = document.getElementById('showdownDetails');
 const playerMessageDiv   = document.getElementById('playerMessage');
 const actionsContainer   = document.getElementById('actionsContainer');
 
+// Referencias a los botones estáticos
+const btnNuevaMano       = document.getElementById('btnNuevaMano');
+const btnEstadisticas    = document.getElementById('btnEstadisticas');
+const sideButtonsDiv     = document.getElementById('sideButtons');
+
 let gameState = null;
 
 // ----------------------------------------------------------
@@ -63,7 +68,7 @@ function updateBotMessage(logs) {
 // Habilitar/Deshabilitar botones de acción del jugador
 // ----------------------------------------------------------
 function enableActions(enable) {
-  actionsContainer.innerHTML = '';
+  actionsContainer.innerHTML  = '';
   playerMessageDiv.textContent = '';
 
   if (!enable) return;
@@ -132,12 +137,12 @@ async function sendPlayerAction(action, raise_amount = null) {
 
   // 5) Si la mano terminó (hand_ended = true), mostramos showdown y ganador/fold
   if (data.hand_ended) {
-    // 5.1) Intentamos buscar "Showdown!" en los logs
+    // 5.1) Intentar buscar “Showdown!” en los logs
     const showdownLine = data.log.find(m =>
       m.toLowerCase().startsWith("showdown")
     ) || "";
 
-    // 5.2) Línea con ganador: "¡Ganas..." o "El bot gana..." o "Empate..."
+    // 5.2) Línea con ganador: “¡Ganas…” o “El bot gana…” o “Empate…”
     const winnerLine = data.log.find(m => {
       const low = m.toLowerCase();
       return low.startsWith("¡ganas") ||
@@ -145,17 +150,17 @@ async function sendPlayerAction(action, raise_amount = null) {
              low.includes("empate");
     }) || "";
 
-    // 5.3) "Tu mejor jugada: …"
+    // 5.3) “Tu mejor jugada: …”
     const tuMejorLine  = data.log.find(m =>
       m.toLowerCase().startsWith("tu mejor jugada")
     ) || "";
 
-    // 5.4) "Mejor jugada del bot: …"
+    // 5.4) “Mejor jugada del bot: …”
     const botMejorLine = data.log.find(m =>
       m.toLowerCase().startsWith("mejor jugada del bot")
     ) || "";
 
-    // 5.5) Mostrar "Showdown!" en el centro (si existe)
+    // 5.5) Mostrar “Showdown!” en el centro (si existe)
     showdownCenterDiv.textContent = showdownLine;
 
     // 5.6) Mostrar detalles: ganador, tu mano y mano del bot
@@ -164,13 +169,15 @@ async function sendPlayerAction(action, raise_amount = null) {
       .join("\n");
     showdownDetailsDiv.textContent = detalles;
 
-    // NOTA: no limpiamos botMessageDiv para que, si hizo fold, se vea ese mensaje.
-
-    // 5.7) Deshabilitamos acciones y habilitamos “Nueva Mano” y “Ver Estadísticas”
+    // 5.7) Deshabilitar botones de acción y habilitar “Nueva Partida” / “Estadísticas”
     enableActions(false);
-    playerMessageDiv.textContent = 'Mano terminada. Elige “Nueva Mano” o “Ver Estadísticas”.';
-    newHandBtn.disabled = false;
-    statsBtn.disabled = false;
+    playerMessageDiv.textContent = 'Mano terminada. Elige “Nueva Partida” o “Estadísticas”.';
+
+    // Habilitar y mostrar los botones estáticos
+    btnNuevaMano.disabled    = false;
+    btnEstadisticas.disabled = false;
+    sideButtonsDiv.style.display = 'flex';
+
     return;
   }
 
@@ -191,32 +198,40 @@ async function sendPlayerAction(action, raise_amount = null) {
 // Iniciar una nueva mano
 // ----------------------------------------------------------
 async function iniciarPartida() {
-  newHandBtn.disabled = true;
-  statsBtn.disabled = true;
+  // Ocultar y deshabilitar los botones estáticos al empezar:
+  btnNuevaMano.disabled    = true;
+  btnEstadisticas.disabled = true;
+  sideButtonsDiv.style.display = 'none';
 
+  // Limpiar mensajes y contenedores
   showdownCenterDiv.textContent  = '';
   showdownDetailsDiv.textContent = '';
   botMessageDiv.textContent      = '';
   playerMessageDiv.textContent   = '';
   actionsContainer.innerHTML     = '';
 
-  const res = await fetch('/api/start_hand', { method: 'POST' });
+  // 1) Llamada al endpoint de Flask para iniciar mano
+  const res  = await fetch('/api/start_hand', { method: 'POST' });
   const data = await res.json();
 
   if (data.error) {
     alert(data.error);
-    newHandBtn.disabled = false;
+    // Si hay error, volvemos a habilitar el botón “Nueva Partida”
+    btnNuevaMano.disabled = false;
     return;
   }
 
+  // 2) Actualizar estado del juego
   gameState = data;
   renderCards();
   updateStatus();
 
+  // 3) Mostrar último mensaje del bot (si existe)
   if (data.log) {
     updateBotMessage(data.log);
   }
 
+  // 4) Si le toca al jugador, habilitar botones de acción; sino, esperar al bot
   if (gameState.to_act === "player") {
     enableActions(true);
   } else {
@@ -224,46 +239,3 @@ async function iniciarPartida() {
     botMessageDiv.textContent = 'Esperando acción del bot...';
   }
 }
-
-// ==========================================================
-// Botón “Nueva Mano” (creado dinámicamente)
-// ==========================================================
-const newHandBtn = document.createElement('button');
-newHandBtn.textContent = 'Nueva Mano';
-Object.assign(newHandBtn.style, {
-  position: 'absolute',
-  top: '10px',          // 10px desde el borde superior
-  right: '20px',        // 20px desde el borde derecho
-  padding: '0.5rem 1rem',
-  background: '#006600',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '6px',
-  cursor: 'pointer',
-  zIndex: '3'
-});
-newHandBtn.onclick = iniciarPartida;
-document.body.appendChild(newHandBtn);
-
-// ==========================================================
-// Botón “Ver Estadísticas” (creado dinámicamente, deshabilitado al inicio)
-// ==========================================================
-const statsBtn = document.createElement('button');
-statsBtn.textContent = 'Ver Estadísticas';
-Object.assign(statsBtn.style, {
-  position: 'absolute',
-  top: '60px',          // 60px desde el borde superior (apilado debajo de “Nueva Mano”)
-  right: '20px',        // misma distancia desde la derecha
-  padding: '0.5rem 1rem',
-  background: '#004080',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '6px',
-  cursor: 'pointer',
-  zIndex: '3'
-});
-statsBtn.disabled = true;  // se habilita solo al terminar la mano
-statsBtn.onclick = () => {
-  window.location.href = 'stats.html';
-};
-document.body.appendChild(statsBtn);

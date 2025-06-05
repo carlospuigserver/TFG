@@ -1,15 +1,37 @@
 Dealer: BOT -> SB=10 (bot), BB=20 (jugador)
 === Nueva mano ===
 Dealer: BOT
-Tus cartas: ['KS', 'AD']
+Tus cartas: ['TS', 'AD']
 Fichas -> Tú: 980 | Bot: 990 | Pot: 30
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
 Player hace CHECK.
 Bot hace CALL de 10 fichas.
 Ronda de apuestas completada.
-Flop: ['KC', '5H', '7H']
+Flop: ['5C', 'JD', '8D']
 Fichas -> Tú: 980 | Bot: 980 | Pot: 40
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace RAISE de 30 fichas (incluyendo call).
-Bot se retira (FOLD).
-Bot se retira. Tú ganas la mano.
+Player hace CHECK.
+Bot hace RAISE de 40 fichas (incluyendo call).
+Player hace CALL de 40 fichas.
+Ronda de apuestas completada.
+Turn: ['5C', 'JD', '8D', 'TH']
+Fichas -> Tú: 940 | Bot: 940 | Pot: 120
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
+Player hace CHECK.
+Bot hace CHECK.
+Ronda de apuestas completada.
+River: ['5C', 'JD', '8D', 'TH', 'TC']
+Fichas -> Tú: 940 | Bot: 940 | Pot: 120
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
+Player hace CHECK.
+Bot hace RAISE de 60 fichas (incluyendo call).
+Player hace CALL de 60 fichas.
+Ronda de apuestas completada.
+Showdown!
+Tus cartas: ['TS', 'AD'] + Comunidad: ['5C', 'JD', '8D', 'TH', 'TC']
+Cartas del bot: ['KS', 'JC'] + Comunidad: ['5C', 'JD', '8D', 'TH', 'TC']
+Tu mejor jugada: Trío de 10 con kickers 14, 11
+Mejor jugada del bot: Dobles parejas de 11 y 10 con kicker 13
+-- Pot total: 240 fichas (Main Pot=240, Side Pot=0)
+¡Ganas la mano y te llevas el MAIN POT de 240 fichas!
+Fichas -> Tú: 1120 | Bot: 880 | Pot: 240

@@ -59,7 +59,7 @@
       z-index: 2;
     }
     #botCards img {
-      width: 80px;
+      width: 90px;
       height: 120px;
       transform: rotate(180deg); /* giradas para que apunten hacia abajo */
     }
@@ -72,7 +72,7 @@
       top: 35%;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 1.2rem;
+      font-size: 1rem;
       font-weight: bold;
       text-shadow: 0 0 4px black;
       min-height: 1.5rem;
@@ -82,8 +82,7 @@
     }
 
     /* ----------------------------------------------------------
-       5.1) Mensaje central: "Showdown!" 
-            (exactamente entre bot y comunitarias, sin solaparse)
+       5.1) Mensaje central: "Showdown!"
     ---------------------------------------------------------- */
     #showdownCenter {
       position: absolute;
@@ -103,7 +102,6 @@
 
     /* ----------------------------------------------------------
        5.2) Detalles de las tres líneas (derecha, multilinea)
-            - A la altura de las comunitarias, más apartado
     ---------------------------------------------------------- */
     #showdownDetails {
       position: absolute;
@@ -133,7 +131,7 @@
       z-index: 2;
     }
     #communityCards img {
-      width: 80px;
+      width: 90px;
       height: 120px;
       transform: none;
     }
@@ -151,7 +149,7 @@
       z-index: 2;
     }
     #playerCards img {
-      width: 80px;
+      width: 90px;
       height: 120px;
       transform: none;
     }
@@ -164,7 +162,7 @@
       bottom: 35%;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 1.2rem;
+      font-size: 1rem;
       font-weight: bold;
       text-shadow: 0 0 4px black;
       min-height: 1.5rem;
@@ -174,7 +172,7 @@
     }
 
     /* ----------------------------------------------------------
-       9) Botones de acción (justo debajo de cartas del jugador)
+       9) Botones de Fold / Call / Raise + input
     ---------------------------------------------------------- */
     #actionsContainer {
       position: absolute;
@@ -211,9 +209,66 @@
     }
 
     /* ----------------------------------------------------------
-       10) Contenedor de logs (eliminado, ya no se usa)
+       10) Botones “Nueva Partida” y “Estadísticas” (HTML estático)
+            Tamaño igual a los botones de acción; ocúltalos por defecto.
+            Posición mucho más a la izquierda para no solaparse.
     ---------------------------------------------------------- */
-    /* #logContainer { ... } */
+    #sideButtons {
+      position: absolute;
+      top: 52%;
+      left: 170px;  /* A la izquierda de las comunitarias */
+      transform: translateY(-50%);
+      display: none;           /* Oculto hasta que termine la mano */
+      flex-direction: row;
+      gap: 1rem;
+      z-index: 2;
+    }
+
+    .side-btn {
+      background: #f9faf9;
+      color: rgb(3, 3, 3);
+      border: none;
+      border-radius: 6px;
+      padding: 0.7rem 1.2rem;
+      cursor: pointer;
+      font-size: 1.2rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+
+    .side-btn:disabled {
+      background: #f9faf9;
+      cursor: not-allowed;
+    }
+
+    .side-btn.new {
+      background: #f9faf9; /* verde */
+    }
+    .side-btn.new:hover {
+      background: #f9faf9;
+      box-shadow: 0 0 20px #f9faf9;
+      transform: scale(1.1);
+    }
+    .side-btn.new:active {
+      background: #f9faf9;
+      transform: scale(0.98);
+      box-shadow: none;
+    }
+
+    .side-btn.stats {
+      background: #f9faf9; /* azul claro */
+    }
+    .side-btn.stats:hover {
+      background: #f9faf9;
+      box-shadow: 0 0 20px #f9faf9;
+      transform: scale(1.1);
+    }
+    .side-btn.stats:active {
+      background: #f9faf9;
+      transform: scale(0.98);
+      box-shadow: none;
+    }
   </style>
 </head>
 <body>
@@ -250,12 +305,25 @@
 
     <!-- 9) Botones de Fold / Call / Raise + input -->
     <div id="actionsContainer"></div>
+
+    <!-- 10) Botones “Nueva Partida” y “Estadísticas” (HTML estático) -->
+    <div id="sideButtons">
+      <button class="side-btn new" id="btnNuevaMano">Nueva Partida</button>
+      <button class="side-btn stats" id="btnEstadisticas" disabled>Estadísticas</button>
+    </div>
   </div>
 
   <!-- Importamos game.js -->
   <script src="game.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      // Enlazar los botones estáticos a sus funciones
+      document.getElementById('btnNuevaMano').onclick = iniciarPartida;
+      document.getElementById('btnEstadisticas').onclick = () => {
+        window.location.href = 'stats.html';
+      };
+
+      // Iniciar la primera mano al cargar la página
       iniciarPartida();
     });
   </script>
