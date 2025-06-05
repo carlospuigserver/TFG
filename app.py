@@ -1,16 +1,16 @@
 from flask import Flask, request, jsonify, send_from_directory
 import pickle
-import os
 import stats
 from practica2 import PokerGame, Action
 
 app = Flask(__name__, static_folder='.')
 
+# Carga del trainer entrenado (CFR)
 with open('cfr_entreno.pkl', 'rb') as f:
     trainer = pickle.load(f)
 
 game = None
-current_hand_logs = []  # Acumulará todas las líneas de log de la mano en curso
+current_hand_logs = []  # Acumula todas las líneas de la mano en curso
 
 def action_str_to_enum(action_str):
     mapping = {
@@ -47,7 +47,7 @@ def start_hand():
     if not started:
         return jsonify({'error': 'No hay fichas para las blinds.'}), 400
 
-    # Construimos los logs iniciales de la mano
+    # Logs iniciales de la mano
     logs = [
         f"Dealer: {game.dealer} -> SB={game.small_blind}, BB={game.big_blind}",
         format_chips(),
@@ -58,7 +58,7 @@ def start_hand():
         f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---"
     ]
 
-    # Reiniciamos y almacenamos los logs de esta nueva mano
+    # Reiniciar y almacenar los logs de esta nueva mano
     current_hand_logs = logs.copy()
 
     return jsonify({
@@ -90,12 +90,11 @@ def player_action():
     if action is None:
         return jsonify({'error': 'Acción inválida'}), 400
 
-    # Nuevo chequeo para reraise solo si apuestas no están igualadas
+    # Chequeo para evitar reraise cuando no corresponde
     bets_equal = (game.player_current_bet == game.bot_current_bet)
     if action == Action.RAISE_MEDIUM and 'r' in game.history and bets_equal:
         return jsonify({'error': 'No se permite hacer reraise si las apuestas están igualadas.'}), 400
 
-    # Log local para esta petición
     logs = []
 
     # Acción del jugador
@@ -116,7 +115,7 @@ def player_action():
         total_raise = raise_amount + (game.current_bet - game.player_current_bet if game.current_bet - game.player_current_bet > 0 else 0)
         logs.append(f"Player hace RAISE de {total_raise} fichas (incluyendo call).")
 
-    # Añadimos estos logs al acumulador de la mano
+    # Añadir logs de la acción del jugador al acumulador
     current_hand_logs.extend(logs)
 
     if ended:
@@ -127,7 +126,7 @@ def player_action():
     # Acción del bot
     bot_action, bot_raise = game.bot_decide_action(trainer)
 
-    # Mismo chequeo para bot: no reraise si apuestas igualadas y ya hubo raise
+    # Evitar reraise del bot en caso de apuestas igualadas y raise previo
     bets_equal = (game.player_current_bet == game.bot_current_bet)
     if bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and 'r' in game.history and bets_equal:
         bot_action = Action.CALL
@@ -155,7 +154,7 @@ def player_action():
         total_raise_bot = bot_raise if bot_raise else 0
         logs.append(f"Bot hace RAISE de {total_raise_bot} fichas (incluyendo call).")
 
-    # Añadimos logs del bot al acumulador de la mano
+    # Añadir logs de la acción del bot al acumulador
     current_hand_logs.extend(logs)
 
     if ended_bot:
@@ -168,7 +167,7 @@ def player_action():
     bot_allin = (game.bot_chips == 0)
     bets_equal = (game.player_current_bet == game.bot_current_bet)
 
-    # Caso: ambos all-in o uno all-in con apuestas igualadas -> Revelar cartas y showdown
+    # Si ambos o uno con all-in igualaron, se va a showdown
     if (player_allin and bot_allin) or ((player_allin or bot_allin) and bets_equal):
         logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
         current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
@@ -231,7 +230,7 @@ def player_action():
         game.pot = 0
         return _end_hand_response(current_hand_logs, show_bot_cards=True)
 
-    # Continuar la mano normalmente
+    # Continuar la mano normalmente: avanzar calle si toca
     bets_equal = (game.player_current_bet == game.bot_current_bet)
     both_acted = ('c' in game.history or 'r' in game.history)
     if bets_equal and both_acted:
@@ -315,8 +314,8 @@ def player_action():
         game.pot = 0
         return _end_hand_response(current_hand_logs, show_bot_cards=True)
 
+    # Si la mano sigue, devolvemos estado normal al frontend
     bot_cards_display = ["card_back", "card_back"]
-
     return jsonify({
         'player_hole': game.player_hole,
         'bot_hole': bot_cards_display,
@@ -341,16 +340,22 @@ def get_last_stats():
     try:
         parsed = stats.parse_last_hand()
         metrics = stats.compute_metrics(parsed)
-        return jsonify(metrics)
+        recs    = stats.generate_recommendations(parsed, metrics)
+        # Aplanamos metrics al primer nivel y agregamos recomendaciones
+        response = metrics.copy()
+        response['recommendations'] = recs
+        return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 def _end_hand_response(all_logs, show_bot_cards=True):
+    """
+    Guarda el log completo de la mano en 'last_hand.log' y devuelve
+    la respuesta JSON al frontend indicando que la mano ha terminado.
+    """
     global game, current_hand_logs
 
-    # --------------------------------------------------------
-    # Guardamos en disco el log completo de la última mano
-    # --------------------------------------------------------
+    # Guardar 'last_hand.log' con todas las líneas de la mano
     try:
         with open('last_hand.log', 'w', encoding='utf-8') as f:
             for line in all_logs:
@@ -373,8 +378,10 @@ def _end_hand_response(all_logs, show_bot_cards=True):
         'log': all_logs,
         'hand_ended': True
     }
+
+    # Reiniciar variables para la próxima mano
     game = None
-    current_hand_logs = []  # Limpiamos para la próxima mano
+    current_hand_logs = []
     return jsonify(resp)
 
 if __name__ == '__main__':

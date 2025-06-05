@@ -275,7 +275,67 @@ def compute_metrics(parsed):
     return m
 
 
+def generate_recommendations(parsed, metrics):
+    """
+    Genera una lista de recomendaciones basadas en las "parsed" y las "metrics".
+    Cada elemento de la lista es una frase de consejo de Nash.
+    """
+    recs = []
+
+    # 1) Preflop: si no hubo VPIP (vpip == 0) y tenías un par alto o cartas fuertes,
+    #    recomendar ser más agresivo.
+    #    Ejemplo muy simplificado: si tu mano inicial era pareja alta, sugerir raise.
+    hole = parsed['player_hole']
+    vpip = metrics['vpip']
+    if vpip == 0:
+        # Vamos a distinguir pares altos si la "hole" muestra dos mismas letras.
+        if hole[0][0] == hole[1][0]:  
+            recs.append(
+                f"En preflop, tu mano inicial fue {hole}. Nash sugeriría abrir con raise con pareja."
+            )
+        else:
+            recs.append(
+                f"En preflop, tuviste {hole}. Nash habría recomendado al menos un call, pero igualaste fotos."
+            )
+
+    # 2) Flop: si hiciste muchos calls pero no raise y tenías posibilidad de proyecto,
+    #    sugerir ser más agresivo.
+    calls_flop = metrics['counts_per_street']['flop']['calls']
+    raises_flop = metrics['counts_per_street']['flop']['raises']
+    if calls_flop > 0 and raises_flop == 0:
+        recs.append(
+            f"En el flop hiciste {calls_flop} call(s) pero ningún raise. Nash recomendaría más agresión en el flop."
+        )
+
+    # 3) Turn: si hiciste fold con equity decente (por ejemplo, si tienes par medio),
+    #    recomendar revisar pot odds. Para simplificar, asumimos que si fold=1, sugerimos.
+    folds_turn = metrics['counts_per_street']['turn']['folds']
+    if folds_turn > 0:
+        recs.append(
+            f"En el turn te retiraste (fold). Si tu equity era > 40%, Nash indicaría al menos un call."
+        )
+
+    # 4) River: si llegaste a showdown y perdiste, agregar consejo sobre valor.
+    if metrics['wtsd'] == 1 and metrics['wsd'] == 0:
+        recs.append(
+            "Llegaste al showdown pero perdiste. En river, revisar si tu apuesta de valor fue óptima según Nash."
+        )
+
+    # 5) Agregar mensaje general si no hay recomendaciones específicas.
+    if len(recs) == 0:
+        recs.append("Movimiento muy cercano a Nash. ¡Buen trabajo!")
+    
+    return recs
+
+
 if __name__ == '__main__':
     parsed = parse_last_hand()
     metrics = compute_metrics(parsed)
-    print(json.dumps(metrics, indent=2))
+    recommendations = generate_recommendations(parsed, metrics)
+
+    # Imprimimos JSON con métricas y recomendaciones
+    output = {
+        'metrics': metrics,
+        'recommendations': recommendations
+    }
+    print(json.dumps(output, indent=2))

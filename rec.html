@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recomendaciones de Nash</title>
+  <style>
+    /* ----------------------------------------------------------
+       1) Fondo: imagen de Nash (puedes ajustar la ruta si está en otra carpeta)
+    ---------------------------------------------------------- */
+    body {
+      margin: 0;
+      padding: 0;
+      background: url("Nash.png") no-repeat center center / cover;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Comic Sans MS', 'Chalkboard SE', 'Segoe UI', sans-serif;
+      color: #111;
+    }
+
+    /* ----------------------------------------------------------
+       2) Contenedor principal semitransparente (globo de cómic)
+    ---------------------------------------------------------- */
+    #bubble {
+      background: rgba(255, 255, 255, 0.9);
+      border: 3px solid #333;
+      border-radius: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      padding: 2rem;
+      width: 80%;
+      max-width: 600px;
+      position: relative;
+      text-align: left;
+    }
+    /* “Cola” del globo */
+    #bubble::after {
+      content: "";
+      position: absolute;
+      bottom: -30px;
+      left: 50px;
+      border-width: 20px 15px 0 15px;
+      border-style: solid;
+      border-color: rgba(255,255,255,0.9) transparent transparent transparent;
+    }
+
+    /* ----------------------------------------------------------
+       3) Título “Nash dice...” dentro del globo
+    ---------------------------------------------------------- */
+    #bubble h2 {
+      margin-top: 0;
+      font-size: 1.5rem;
+      color: #333;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+
+    /* ----------------------------------------------------------
+       4) Lista de recomendaciones
+    ---------------------------------------------------------- */
+    #recsList {
+      margin-top: 1rem;
+      list-style: none;
+      padding-left: 0;
+    }
+    #recsList li {
+      margin-bottom: 0.8rem;
+      font-size: 1.1rem;
+      line-height: 1.4;
+      position: relative;
+    }
+    /* Pequeño icono de bocadillo junto a cada recomendación */
+    #recsList li::before {
+      content: "💡";
+      margin-right: 0.5rem;
+    }
+
+    /* ----------------------------------------------------------
+       5) Botón “Volver a Estadísticas”
+    ---------------------------------------------------------- */
+    #backBtn {
+      margin-top: 1.5rem;
+      background: #006600;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.7rem 1.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      transition: background 0.2s ease;
+    }
+    #backBtn:hover {
+      background: #008000;
+    }
+  </style>
+</head>
+<body>
+  <div id="bubble">
+    <h2>Nash dice:</h2>
+    <ul id="recsList">
+      <!-- Aquí se añadirán dinámicamente las recomendaciones -->
+    </ul>
+    <button id="backBtn">Volver a Estadísticas</button>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1) Primero pedimos métricas + recomendaciones
+      fetch('/api/last_stats')
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            alert("Error al obtener datos: " + data.error);
+            return;
+          }
+          // Si el endpoint devolviera un JSON con 'metrics' y 'recommendations',
+          // habría que hacer fetch a /api/last_stats?recs=true o similar. Pero aquí:
+          // Nuestro endpoint actual (/api/last_stats) SOLO devuelve métricas. Necesitamos 
+          // llamarlo de nuevo a stats.py para obtener las recomendaciones tal y como está en el main.
+          // Dado que nuestro endpoint no devuelve recomendaciones en la ruta /api/last_stats,
+          // vamos a hacer un fetch directo a stats.py ejecutándolo como script (solo en entorno local),
+          // pero en producción se recomendaría exponer otro endpoint. Para simplicidad, asumimos:
+          //
+          // - Cambiamos /api/last_stats para que devuelva también 'recommendations'.
+          //   (Ve más abajo "Ajuste en app.py" si quieres esta ruta unificada.)
+          //
+          // Por ahora, suponemos que /api/last_stats ya devuelve:
+          // { metrics: { … }, recommendations: [ … ] }
+          const recs = data.recommendations || [];
+
+          // 2) Insertar cada recomendación en el <ul>
+          const ul = document.getElementById('recsList');
+          recs.forEach(texto => {
+            const li = document.createElement('li');
+            li.textContent = texto;
+            ul.appendChild(li);
+          });
+        })
+        .catch(err => {
+          alert("Error al conectar con la API de recomendaciones:\n" + err);
+        });
+
+      // 3) Botón “Volver a Estadísticas”
+      document.getElementById('backBtn').onclick = () => {
+        window.location.href = 'stats.html';
+      };
+    });
+  </script>
+</body>
+</html>

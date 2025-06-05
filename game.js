@@ -252,7 +252,7 @@ const statsBtn = document.createElement('button');
 statsBtn.textContent = 'Ver Estadísticas';
 Object.assign(statsBtn.style, {
   position: 'absolute',
-  top: '5%',
+  top: '8%',
   right: '150px',       // a la izquierda de “Nueva Mano”
   padding: '0.5rem 1rem',
   background: '#004080',
