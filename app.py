@@ -42,9 +42,7 @@ def format_chips():
 @app.route('/api/start_hand', methods=['POST'])
 def start_hand():
     global game, current_hand_logs
-    # Si no hay objeto game, lo creamos; si ya existía, lo reutilizamos para alternar dealer.
-    if game is None:
-        game = PokerGame()
+    game = PokerGame()
     started = game.start_hand()
     if not started:
         return jsonify({'error': 'No hay fichas para las blinds.'}), 400
@@ -63,65 +61,6 @@ def start_hand():
     # Reiniciar y almacenar los logs de esta nueva mano
     current_hand_logs = logs.copy()
 
-    # Si al arrancar la mano le toca primero al bot, hacemos que el bot actúe aquí:
-    first_actor = game.get_first_actor()
-    if first_actor == "bot":
-        # El bot decide acción (CFR + equity)
-        bot_action, bot_raise = game.bot_decide_action(trainer)
-
-        # Evitar reraise inválido: si history contiene 'r' y apuestas igualadas, forzar CALL
-        bets_equal_pre = (game.player_current_bet == game.bot_current_bet)
-        if bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and 'r' in game.history and bets_equal_pre:
-            bot_action = Action.CALL
-            bot_raise = None
-
-        to_call_bot = game.current_bet - game.bot_current_bet
-        if bot_action == Action.FOLD and to_call_bot == 0:
-            bot_action = Action.CALL
-            bot_raise = None
-
-        ended_bot = game.apply_action("bot", bot_action, raise_amount=bot_raise)
-
-        # Detectar all-in bot justo después de aplicar la acción
-        if game.bot_chips == 0 and not ended_bot:
-            logs.append("Bot va ALL-IN!")
-
-        # Registrar texto apropiado para la acción del bot
-        if bot_action == Action.CALL and to_call_bot == 0:
-            logs.append("Bot hace CHECK.")
-        elif bot_action == Action.CALL:
-            pay_b = to_call_bot if to_call_bot > 0 else 0
-            logs.append(f"Bot hace CALL de {pay_b} fichas.")
-        elif bot_action == Action.FOLD:
-            logs.append("Bot se retira (FOLD).")
-        elif bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]:
-            total_raise_bot = bot_raise if bot_raise else 0
-            logs.append(f"Bot hace RAISE de {total_raise_bot} fichas (incluyendo call).")
-
-        current_hand_logs.extend(logs)
-
-        if ended_bot:
-            logs.append("Bot se retira. Tú ganas la mano.")
-            current_hand_logs.append("Bot se retira. Tú ganas la mano.")
-            return _end_hand_response(current_hand_logs, show_bot_cards=False)
-
-        # Tras la acción inicial del bot, le toca al jugador
-        return jsonify({
-            'player_hole': game.player_hole,
-            'bot_hole': ["card_back", "card_back"],
-            'community_cards': [],
-            'pot': game.pot,
-            'player_chips': game.player_chips,
-            'bot_chips': game.bot_chips,
-            'dealer': game.dealer,
-            'street_index': game.street_index,
-            'history': game.history,
-            'to_act': "player",
-            'log': logs,
-            'hand_ended': False
-        })
-
-    # Si el jugador es quien actúa primero (bot es dealer), devolvemos estado normal
     return jsonify({
         'player_hole': game.player_hole,
         'bot_hole': ["card_back", "card_back"],
@@ -132,7 +71,7 @@ def start_hand():
         'dealer': game.dealer,
         'street_index': game.street_index,
         'history': game.history,
-        'to_act': "player",
+        'to_act': game.get_first_actor(),
         'log': logs,
         'hand_ended': False
     })
@@ -158,7 +97,7 @@ def player_action():
 
     logs = []
 
-    # --- Acción del jugador ---
+    # Acción del jugador
     ended = game.apply_action("player", action, raise_amount=raise_amount)
 
     # Detectar all-in jugador
@@ -184,7 +123,7 @@ def player_action():
         current_hand_logs.append("Jugador se retiró. Bot gana la mano.")
         return _end_hand_response(current_hand_logs, show_bot_cards=False)
 
-    # --- Acción del bot tras la jugada del jugador ---
+    # Acción del bot
     bot_action, bot_raise = game.bot_decide_action(trainer)
 
     # Evitar reraise del bot en caso de apuestas igualadas y raise previo
@@ -440,7 +379,9 @@ def _end_hand_response(all_logs, show_bot_cards=True):
         'hand_ended': True
     }
 
-    # No reiniciamos `game` ni `current_hand_logs` para que el dealer se alterne en la próxima mano
+    # Reiniciar variables para la próxima mano
+    game = None
+    current_hand_logs = []
     return jsonify(resp)
 
 if __name__ == '__main__':

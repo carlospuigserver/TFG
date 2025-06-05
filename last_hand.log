@@ -1,57 +1,52 @@
-Dealer: player -> SB=10, BB=20
-Fichas -> Tú: 1030 | Bot: 940 | Pot: 30
+Dealer: bot -> SB=10, BB=20
+Fichas -> Tú: 980 | Bot: 990 | Pot: 30
 === Nueva mano ===
-Dealer: PLAYER
-Tus cartas: ['TS', '9D']
-Fichas -> Tú: 1030 | Bot: 940 | Pot: 30
---- Nueva ronda de apuestas (inicia: BOT) ---
-Dealer: player -> SB=10, BB=20
-Fichas -> Tú: 1030 | Bot: 940 | Pot: 30
-=== Nueva mano ===
-Dealer: PLAYER
-Tus cartas: ['TS', '9D']
-Fichas -> Tú: 1030 | Bot: 940 | Pot: 30
---- Nueva ronda de apuestas (inicia: BOT) ---
-Bot hace CHECK.
+Dealer: BOT
+Tus cartas: ['6C', 'QD']
+Fichas -> Tú: 980 | Bot: 990 | Pot: 30
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
 Player hace CHECK.
 Player hace CHECK.
-Bot hace CHECK.
+Bot hace CALL de 10 fichas.
 Ronda de apuestas completada.
-Fichas -> Tú: 1020 | Bot: 940 | Pot: 40
-Flop: ['6H', '8D', '9S'][][]
-Fichas -> Tú: 1020 | Bot: 940 | Pot: 40
---- Nueva ronda de apuestas (inicia: BOT) ---
+Fichas -> Tú: 980 | Bot: 980 | Pot: 40
+Flop: ['2H', 'TD', '3C'][][]
+Fichas -> Tú: 980 | Bot: 980 | Pot: 40
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
 Player hace CHECK.
 Player hace CHECK.
-Bot hace RAISE de 40 fichas (incluyendo call).
+Bot hace RAISE de 20 fichas (incluyendo call).
 Player hace CHECK.
 Player hace CHECK.
 Bot hace CHECK.
 Ronda de apuestas completada.
-Fichas -> Tú: 980 | Bot: 900 | Pot: 120
-Turn: ['6H', '8D', '9S']['TC'][]
-Fichas -> Tú: 980 | Bot: 900 | Pot: 120
---- Nueva ronda de apuestas (inicia: BOT) ---
-Player hace RAISE de 40 fichas (incluyendo call).
-Player hace RAISE de 40 fichas (incluyendo call).
-Bot hace CALL de 40 fichas.
-Ronda de apuestas completada.
-Fichas -> Tú: 940 | Bot: 860 | Pot: 200
-River: ['6H', '8D', '9S']['TC']['AC']
-Fichas -> Tú: 940 | Bot: 860 | Pot: 200
---- Nueva ronda de apuestas (inicia: BOT) ---
+Fichas -> Tú: 960 | Bot: 960 | Pot: 80
+Turn: ['2H', 'TD', '3C']['9H'][]
+Fichas -> Tú: 960 | Bot: 960 | Pot: 80
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
+Player hace CHECK.
+Player hace CHECK.
+Bot hace RAISE de 80 fichas (incluyendo call).
 Player hace CHECK.
 Player hace CHECK.
 Bot hace CHECK.
 Ronda de apuestas completada.
-Fichas -> Tú: 940 | Bot: 860 | Pot: 200
-Fichas -> Tú: 940 | Bot: 860 | Pot: 200
---- Nueva ronda de apuestas (inicia: BOT) ---
+Fichas -> Tú: 880 | Bot: 880 | Pot: 240
+River: ['2H', 'TD', '3C']['9H']['TS']
+Fichas -> Tú: 880 | Bot: 880 | Pot: 240
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
+Player hace CHECK.
+Player hace CHECK.
+Bot hace CHECK.
+Ronda de apuestas completada.
+Fichas -> Tú: 880 | Bot: 880 | Pot: 240
+Fichas -> Tú: 880 | Bot: 880 | Pot: 240
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
 Showdown!
-Tus cartas: ['TS', '9D'] + Comunidad: ['6H', '8D', '9S', 'TC', 'AC']
-Cartas del bot: ['8H', '2C'] + Comunidad: ['6H', '8D', '9S', 'TC', 'AC']
-Tu mejor jugada: Dobles parejas de 10 y 9 con kicker 14
-Mejor jugada del bot: Pareja de 8 con kickers 14, 10, 9
--- Pot total: 200 fichas (Main Pot=200, Side Pot=0)
-¡Ganas la mano y te llevas el MAIN POT de 200 fichas!
-Fichas -> Tú: 1140 | Bot: 860 | Pot: 200
+Tus cartas: ['6C', 'QD'] + Comunidad: ['2H', 'TD', '3C', '9H', 'TS']
+Cartas del bot: ['2C', '5D'] + Comunidad: ['2H', 'TD', '3C', '9H', 'TS']
+Tu mejor jugada: Pareja de 10 con kickers 12, 9, 6
+Mejor jugada del bot: Dobles parejas de 10 y 2 con kicker 9
+-- Pot total: 240 fichas (Main Pot=240, Side Pot=0)
+El bot gana la mano y se lleva MAIN+SIDE POT: 240 fichas.
+Fichas -> Tú: 880 | Bot: 1120 | Pot: 240
