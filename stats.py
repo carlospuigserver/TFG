@@ -80,8 +80,9 @@ def parse_last_hand():
     regex_player_hole   = re.compile(r"Tus cartas:\s*\[(.*?)\]")
     regex_bot_hole      = re.compile(r"Cartas del bot:\s*\[(.*?)\]")
     regex_flop          = re.compile(r"Flop:\s*\[(.*?)\]")
-    regex_turn          = re.compile(r"Turn:\s*(\w+)")
-    regex_river         = re.compile(r"River:\s*(\w+)")
+    # AHORA capturamos TODO lo que esté entre corchetes y sacamos la última carta
+    regex_turn          = re.compile(r"Turn:\s*\[(.*?)\]")
+    regex_river         = re.compile(r"River:\s*\[(.*?)\]")
     regex_action_player = re.compile(r"Player hace (CALL|CHECK|FOLD|RAISE)(?: de (\d+) fichas)?", re.IGNORECASE)
     regex_action_bot    = re.compile(r"Bot hace (CALL|CHECK|FOLD|RAISE)(?: de (\d+) fichas)?", re.IGNORECASE)
     regex_showdown      = re.compile(r"Showdown!", re.IGNORECASE)
@@ -110,29 +111,41 @@ def parse_last_hand():
         if m_bh and info['bot_hole'] is None:
             info['bot_hole'] = [c.strip() for c in m_bh.group(1).split(',')]
 
-        # 3.3) Flop / Turn / River
+        # 3.3) Flop
         m_flop = regex_flop.search(line)
         if m_flop:
-            info['community'].append([c.strip() for c in m_flop.group(1).split(',')])
+            # Tomamos la lista entera de flop, luego la convertimos a 3 cartas
+            lista_flop = [c.strip().strip("'\"") for c in m_flop.group(1).split(',')]
+            # Asegurarnos de quedarnos solo con las primeras 3 (por si hubiese ruido extra)
+            lista_flop = lista_flop[:3]
+            info['community'].append(lista_flop)
             calle_actual = 'flop'
             last_action  = None
             continue
 
+        # 3.4) Turn (la línea viene con 4 cartas en total; extraemos la última)
         m_turn = regex_turn.search(line)
         if m_turn:
-            info['community'].append([m_turn.group(1).strip()])
+            todas = [c.strip().strip("'\"") for c in m_turn.group(1).split(',')]
+            if todas:
+                last_card = todas[-1]  # será la carta del turn
+                info['community'].append([last_card])
             calle_actual = 'turn'
             last_action  = None
             continue
 
+        # 3.5) River (la línea viene con 5 cartas en total; extraemos la última)
         m_river = regex_river.search(line)
         if m_river:
-            info['community'].append([m_river.group(1).strip()])
+            todas = [c.strip().strip("'\"") for c in m_river.group(1).split(',')]
+            if todas:
+                last_card = todas[-1]  # será la carta del river
+                info['community'].append([last_card])
             calle_actual = 'river'
             last_action  = None
             continue
 
-        # 3.4) Acciones del jugador
+        # 3.6) Acciones del jugador
         m_ap = regex_action_player.search(line)
         if m_ap:
             tipo  = m_ap.group(1).upper()       # 'CALL', 'CHECK', 'FOLD' o 'RAISE'
@@ -156,7 +169,7 @@ def parse_last_hand():
                 last_action = ('player', tipo.lower(), 0)
             continue
 
-        # 3.5) Acciones del bot
+        # 3.7) Acciones del bot
         m_ab = regex_action_bot.search(line)
         if m_ab:
             tipo  = m_ab.group(1).upper()
@@ -180,13 +193,13 @@ def parse_last_hand():
                 last_action = ('bot', tipo.lower(), 0)
             continue
 
-        # 3.6) Showdown (detectamos que llegó showdown)
+        # 3.8) Showdown (detectamos que llegó showdown)
         if regex_showdown.search(line):
             calle_actual = 'showdown'
             last_action  = None
             continue
 
-        # 3.7) Descripción de manos en showdown
+        # 3.9) Descripción de manos en showdown
         if calle_actual == 'showdown':
             m_tm = regex_tu_mejor.search(line)
             if m_tm:
@@ -230,7 +243,7 @@ def compute_metrics(parsed):
     A partir de la información extraída (parsed), calcula las métricas:
     - Ganancia neta
     - VPIP, PFR
-    - AF
+    - AF (aggression factor)
     - WTSD, W$SD
     - Conteo de fold/call/check/raise por calle
     Devuelve un diccionario con las métricas.
@@ -295,15 +308,9 @@ def compute_metrics(parsed):
 def compute_nash_recs(parsed):
     """
     Genera recomendaciones basadas en Nash, fase a fase.
-    Para cada calle (preflop, flop, turn, river) examina cada acción del jugador:
-      - Calcula su equity en ese momento (con real_equity_estimate).
-      - Construye el info-set bucketizado con hand_to_features_enhanced + kmeans.
-      - Extrae del trainer la estrategia de Nash (average_strategy) para ese info-set.
-      - Comprueba si la acción del jugador (call, check, raise o fold) coincide con lo que Nash haría:
-         • Si el jugador eligió una acción cuya probabilidad Nash es muy baja (< 10 %), 
-           se recomienda cambiar a la acción con mayor probabilidad Nash.
-         • Si hizo raise de X fichas, se compara ese tamaño con el “tamaño óptimo” de Nash.
-      - Devuelve una lista de frases explicativas.
+    Por cada calle (preflop, flop, turn, river) toma la PRIMERA acción del jugador
+    y genera UNA SOLA recomendación para esa calle. Así obtenemos hasta 4 recomendaciones,
+    evitando repeticiones múltiples en el caso de que el jugador hiciera varios "call/check" en la misma calle.
     """
     recs = []
     trainer = _load_trainer()
@@ -318,133 +325,127 @@ def compute_nash_recs(parsed):
     }
 
     for calle in ('preflop', 'flop', 'turn', 'river'):
-        if len(parsed['acciones'][calle]) == 0:
+        # Filtrar solo las acciones del jugador en esta calle
+        acciones_calle = [a for a in parsed['acciones'][calle] if a['actor'] == 'player']
+        if not acciones_calle:
             continue
 
-        for idx_a, a in enumerate(parsed['acciones'][calle]):
-            if a['actor'] != 'player':
-                continue
+        # Tomamos únicamente la PRIMERA acción del jugador en esa calle
+        primera_accion = acciones_calle[0]
+        idx_a = parsed['acciones'][calle].index(primera_accion)
 
-            # --- 1) Preparamos hole y board como listas de tuplas ---
-            hole_str  = parsed['player_hole'][:]
-            if calle == 'preflop':
-                board_str = []
-            elif calle == 'flop':
-                board_str = parsed['community'][0]
-            elif calle == 'turn':
-                board_str = parsed['community'][0] + parsed['community'][1]
-            else:  # river
-                board_str = parsed['community'][0] + parsed['community'][1] + parsed['community'][2]
+        # --- 1) Preparamos hole y board como listas de tuplas ---
+        hole_str  = parsed['player_hole'][:]
+        if calle == 'preflop':
+            board_str = []
+        elif calle == 'flop':
+            board_str = parsed['community'][0]
+        elif calle == 'turn':
+            board_str = parsed['community'][0] + parsed['community'][1]
+        else:  # 'river'
+            board_str = parsed['community'][0] + parsed['community'][1] + parsed['community'][2]
 
-            # Mapeo de cartas de string a tupla (rank_int, suit_int)
-            rank_map = {
-                '2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
-                '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11,
-                'Q': 12, 'K': 13, 'A': 14
-            }
-            suit_map = {
-                's': 0, 'h': 1, 'd': 2, 'c': 3,
-                'S': 0, 'H': 1, 'D': 2, 'C': 3
-            }
-            def convert_cards(cards_list):
-                clean = [c.strip().strip("'\"") for c in cards_list]
-                return [(rank_map[c[0]], suit_map[c[1]]) for c in clean]
+        # Mapeo de cartas de string a tupla (rank_int, suit_int)
+        rank_map = {
+            '2': 2, '3': 3, '4': 4, '5': 5, '6': 6,
+            '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11,
+            'Q': 12, 'K': 13, 'A': 14
+        }
+        suit_map = {
+            's': 0, 'h': 1, 'd': 2, 'c': 3,
+            'S': 0, 'H': 1, 'D': 2, 'C': 3
+        }
+        def convert_cards(cards_list):
+            clean = [c.strip().strip("'\"") for c in cards_list]
+            return [(rank_map[c[0]], suit_map[c[1]]) for c in clean]
 
-            hole_num_list  = convert_cards(hole_str)
-            board_num_list = convert_cards(board_str)
+        hole_num_list  = convert_cards(hole_str)
+        board_num_list = convert_cards(board_str)
 
-            # --- 2) Calculamos equity real en este momento ---
-            eq_player = real_equity_estimate(hole_num_list, board_num_list, num_sim=500)
+        # --- 2) Calculamos equity real en este momento ---
+        eq_player = real_equity_estimate(hole_num_list, board_num_list, num_sim=500)
 
-            # --- 3) Construir el info-set para este momento ---
-            phase_map = {'preflop': 'preflop', 'flop': 'flop', 'turn': 'turn', 'river': 'river'}
-            phase = phase_map[calle]
+        # --- 3) Construir el info-set para este momento ---
+        phase_map = {'preflop': 'preflop', 'flop': 'flop', 'turn': 'turn', 'river': 'river'}
+        phase = phase_map[calle]
 
-            # Historial simplificado: concatenamos acciones previas en esta calle
-            history_for_bucket = ""
-            for prev in parsed['acciones'][calle][:idx_a]:
-                if prev['tipo'] in ('call', 'check'):
-                    history_for_bucket += 'c'
-                elif prev['tipo'] == 'raise':
-                    history_for_bucket += 'r'
-                elif prev['tipo'] == 'fold':
-                    history_for_bucket += 'f'
+        # Historial simplificado: concatenamos acciones previas en esta calle
+        history_for_bucket = ""
+        for prev in parsed['acciones'][calle][:idx_a]:
+            if prev['tipo'] in ('call', 'check'):
+                history_for_bucket += 'c'
+            elif prev['tipo'] == 'raise':
+                history_for_bucket += 'r'
+            elif prev['tipo'] == 'fold':
+                history_for_bucket += 'f'
 
-            # Bucketizar usando kmeans del trainer
-            km    = trainer.kmeans_models.get(phase, None)
-            nodes = trainer.nodes.get(phase, {})
+        # Bucketizar usando kmeans del trainer
+        km    = trainer.kmeans_models.get(phase, None)
+        nodes = trainer.nodes.get(phase, {})
 
-            if km is not None and nodes is not None:
-                # Convertimos solo para el predict de kmeans (shape (N,2))
-                hole_np  = np.array(hole_num_list, dtype=int).reshape(len(hole_num_list), 2)
-                board_np = (np.array(board_num_list, dtype=int).reshape(len(board_num_list), 2)
-                            if len(board_num_list) > 0
-                            else np.empty((0, 2), dtype=int))
-
-                feats = hand_to_features_enhanced(
-                    hole_num_list,    # lista de tuplas
-                    board_num_list,   # lista de tuplas
-                    pot=0,            # Se podría pasar el pot real si estuviera disponible
-                    history=history_for_bucket,
-                    to_act=1          # 1 porque es el jugador el que está actuando
-                )
-                bucket = int(km.predict(feats.reshape(1, -1))[0])
-                info_set = f"{phase}|{bucket}|{history_for_bucket}"
-                if info_set in nodes:
-                    strat = nodes[info_set].get_average_strategy()
-                else:
-                    # Si no existe ese info-set en el árbol CFR, usamos uniforme
-                    N = len(Action)
-                    strat = np.ones(N) / N
+        if km is not None and nodes is not None:
+            feats = hand_to_features_enhanced(
+                hole_num_list,
+                board_num_list,
+                pot=0,            # Se podría pasar el pot real si estuviera disponible
+                history=history_for_bucket,
+                to_act=1          # 1 porque es el jugador el que está actuando
+            )
+            bucket = int(km.predict(feats.reshape(1, -1))[0])
+            info_set = f"{phase}|{bucket}|{history_for_bucket}"
+            if info_set in nodes:
+                strat = nodes[info_set].get_average_strategy()
             else:
-                # Si no hay modelo kmeans/nodos, estrategia uniforme
+                # Si no existe ese info-set en el árbol CFR, usamos uniforme
                 N = len(Action)
                 strat = np.ones(N) / N
+        else:
+            # Si no hay modelo kmeans/nodos, estrategia uniforme
+            N = len(Action)
+            strat = np.ones(N) / N
 
-            # --- 4) Analizar la acción que tomó el jugador ---
-            accion_jugador = a['tipo']       # 'call', 'check', 'fold' o 'raise'
+        # --- 4) Analizar la acción que tomó el jugador ---
+        accion_jugador = primera_accion['tipo']       # 'call', 'check', 'fold' o 'raise'
+        # Tratamos 'check' como 'call' para poder mapearlo
+        if accion_jugador == 'check':
+            accion_jugador = 'call'
+        monto_jugador  = primera_accion['monto']      # importe del call/raise (0 si fue check)
 
-            # Tratamos 'check' como 'call' para poder mapearlo
-            if accion_jugador == 'check':
-                accion_jugador = 'call'
+        # Convertir el string a la constante Enum Action correspondiente
+        try:
+            enum_acc   = Action[accion_jugador.upper()]
+            idx_action = action_to_idx.get(enum_acc, None)
+        except KeyError:
+            idx_action = None
 
-            monto_jugador  = a['monto']      # importe del call/raise (0 si fue check)
+        # Si no podemos mapear la acción, saltamos esta calle
+        if idx_action is None:
+            continue
 
-            # Convertir el string a la constante Enum Action correspondiente
-            try:
-                enum_acc   = Action[accion_jugador.upper()]
-                idx_action = action_to_idx.get(enum_acc, None)
-            except KeyError:
-                idx_action = None
+        prob_nash = strat[idx_action]
 
-            if idx_action is None:
-                # Si no podemos mapear la acción, saltamos
-                continue
+        # Encontrar la acción de Nash con mayor probabilidad
+        idx_max = int(np.argmax(strat))
+        action_from_idx = {v: k for k, v in action_to_idx.items()}
+        accion_nash = action_from_idx.get(idx_max, None)
 
-            prob_nash = strat[idx_action]
+        # --- 5) Construir la frase de recomendación para esta calle ---
+        umbral = 0.10
 
-            # Encontrar la acción de Nash con mayor probabilidad
-            idx_max = int(np.argmax(strat))
-            action_from_idx = {v: k for k, v in action_to_idx.items()}
-            accion_nash = action_from_idx.get(idx_max, None)
-
-            # --- 5) Construir la frase de recomendación si el jugador se desvió ---
-            umbral = 0.10
-
-            if prob_nash < umbral:
-                texto = (
-                    f"En {calle.upper()}, tuviste {hole_str} con board {board_str} → "
-                    f"tu equity ≈ {eq_player:.1%}. Nash juega “{accion_nash.name.lower()}” "
-                    f"con frecuencia {strat[idx_max]:.0%}, pero tú hiciste “{accion_jugador}”. "
-                    f"Recomendado: “{accion_nash.name.lower()}”."
-                )
-                recs.append(texto)
-            else:
-                texto = (
-                    f"En {calle.upper()}, tu acción (“{accion_jugador}”) coincide con Nash "
-                    f"({prob_nash:.0%}). Tu equity ≈ {eq_player:.1%}, ¡bien jugado!"
-                )
-                recs.append(texto)
+        if prob_nash < umbral:
+            texto = (
+                f"En {calle.upper()}, tuviste {hole_str} con board {board_str} → "
+                f"tu equity ≈ {eq_player:.1%}. Nash juega “{accion_nash.name.lower()}” "
+                f"con frecuencia {strat[idx_max]:.0%}, pero tú hiciste “{accion_jugador}”. "
+                f"Recomendado: “{accion_nash.name.lower()}”."
+            )
+            recs.append(texto)
+        else:
+            texto = (
+                f"En {calle.upper()}, tu acción (“{accion_jugador}”) coincide con Nash "
+                f"({prob_nash:.0%}). Tu equity ≈ {eq_player:.1%}, ¡bien jugado!"
+            )
+            recs.append(texto)
 
     return recs
 
