@@ -225,15 +225,15 @@ async function iniciarPartida() {
   }
 }
 
-// ----------------------------------------------------------
+// ==========================================================
 // Botón “Nueva Mano” (creado dinámicamente)
-// ----------------------------------------------------------
+// ==========================================================
 const newHandBtn = document.createElement('button');
 newHandBtn.textContent = 'Nueva Mano';
 Object.assign(newHandBtn.style, {
   position: 'absolute',
-  top: '5%',
-  right: '5%',
+  top: '10px',          // 10px desde el borde superior
+  right: '20px',        // 20px desde el borde derecho
   padding: '0.5rem 1rem',
   background: '#006600',
   color: '#fff',
@@ -245,15 +245,15 @@ Object.assign(newHandBtn.style, {
 newHandBtn.onclick = iniciarPartida;
 document.body.appendChild(newHandBtn);
 
-// ----------------------------------------------------------
+// ==========================================================
 // Botón “Ver Estadísticas” (creado dinámicamente, deshabilitado al inicio)
-// ----------------------------------------------------------
+// ==========================================================
 const statsBtn = document.createElement('button');
 statsBtn.textContent = 'Ver Estadísticas';
 Object.assign(statsBtn.style, {
   position: 'absolute',
-  top: '8%',
-  right: '150px',       // a la izquierda de “Nueva Mano”
+  top: '60px',          // 60px desde el borde superior (apilado debajo de “Nueva Mano”)
+  right: '20px',        // misma distancia desde la derecha
   padding: '0.5rem 1rem',
   background: '#004080',
   color: '#fff',
