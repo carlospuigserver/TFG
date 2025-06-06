@@ -1,37 +1,36 @@
 Dealer: BOT -> SB=10 (bot), BB=20 (jugador)
 === Nueva mano ===
 Dealer: BOT
-Tus cartas: ['2H', '5S']
+Tus cartas: ['8S', '8H']
 Fichas -> Tú: 980 | Bot: 990 | Pot: 30
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
 Player hace CHECK.
-Bot hace CALL de 10 fichas.
+Bot hace RAISE de 30 fichas (incluyendo call).
+Player hace CALL de 30 fichas.
 Ronda de apuestas completada.
-Flop: ['QH', '7S', '4S']
-Fichas -> Tú: 980 | Bot: 980 | Pot: 40
+Flop: ['JS', 'AH', '8D']
+Fichas -> Tú: 950 | Bot: 950 | Pot: 100
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace CHECK.
-Bot hace CHECK.
+Player hace RAISE de 100 fichas (incluyendo call).
+Bot hace CALL de 100 fichas.
 Ronda de apuestas completada.
-Turn: ['QH', '7S', '4S', '2S']
-Fichas -> Tú: 980 | Bot: 980 | Pot: 40
+Turn: ['JS', 'AH', '8D', '7C']
+Fichas -> Tú: 850 | Bot: 850 | Pot: 300
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace CHECK.
-Bot hace RAISE de 40 fichas (incluyendo call).
-Player hace CALL de 40 fichas.
+Player hace RAISE de 100 fichas (incluyendo call).
+Bot hace CALL de 100 fichas.
 Ronda de apuestas completada.
-River: ['QH', '7S', '4S', '2S', '4C']
-Fichas -> Tú: 940 | Bot: 940 | Pot: 120
+River: ['JS', 'AH', '8D', '7C', '7S']
+Fichas -> Tú: 750 | Bot: 750 | Pot: 500
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace CHECK.
-Bot hace RAISE de 120 fichas (incluyendo call).
-Player hace CALL de 120 fichas.
+Player hace RAISE de 700 fichas (incluyendo call).
+Bot hace CALL de 700 fichas.
 Ronda de apuestas completada.
 Showdown!
-Tus cartas: ['2H', '5S'] + Comunidad: ['QH', '7S', '4S', '2S', '4C']
-Cartas del bot: ['9H', 'QD'] + Comunidad: ['QH', '7S', '4S', '2S', '4C']
-Tu mejor jugada: Dobles parejas de 4 y 2 con kicker 12
-Mejor jugada del bot: Dobles parejas de 12 y 4 con kicker 9
--- Pot total: 360 fichas (Main Pot=360, Side Pot=0)
-El bot gana la mano y se lleva MAIN+SIDE POT: 360 fichas.
-Fichas -> Tú: 820 | Bot: 1180 | Pot: 360
+Tus cartas: ['8S', '8H'] + Comunidad: ['JS', 'AH', '8D', '7C', '7S']
+Cartas del bot: ['9S', '9D'] + Comunidad: ['JS', 'AH', '8D', '7C', '7S']
+Tu mejor jugada: Full House: triple de 8 y pareja de 7
+Mejor jugada del bot: Dobles parejas de 9 y 7 con kicker 14
+-- Pot total: 1900 fichas (Main Pot=1900, Side Pot=0)
+¡Ganas la mano y te llevas el MAIN POT de 1900 fichas!
+Fichas -> Tú: 1950 | Bot: 50 | Pot: 1900
