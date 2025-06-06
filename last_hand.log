@@ -1,36 +1,15 @@
 Dealer: BOT -> SB=10 (bot), BB=20 (jugador)
 === Nueva mano ===
 Dealer: BOT
-Tus cartas: ['5S', '5C']
+Tus cartas: ['6C', '9C']
 Fichas -> Tú: 980 | Bot: 990 | Pot: 30
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
 Player hace CHECK.
 Bot hace CALL de 10 fichas.
 Ronda de apuestas completada.
-Flop: ['TD', '6S', '2H']
+Flop: ['5S', 'AH', 'QD']
 Fichas -> Tú: 980 | Bot: 980 | Pot: 40
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace CHECK.
-Bot hace RAISE de 20 fichas (incluyendo call).
-Player hace CALL de 20 fichas.
-Ronda de apuestas completada.
-Turn: ['TD', '6S', '2H', '9H']
-Fichas -> Tú: 960 | Bot: 960 | Pot: 80
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace CHECK.
-Bot hace CHECK.
-Ronda de apuestas completada.
-River: ['TD', '6S', '2H', '9H', '6C']
-Fichas -> Tú: 960 | Bot: 960 | Pot: 80
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace RAISE de 30 fichas (incluyendo call).
-Bot hace CALL de 30 fichas.
-Ronda de apuestas completada.
-Showdown!
-Tus cartas: ['5S', '5C'] + Comunidad: ['TD', '6S', '2H', '9H', '6C']
-Cartas del bot: ['7H', 'KD'] + Comunidad: ['TD', '6S', '2H', '9H', '6C']
-Tu mejor jugada: Dobles parejas de 6 y 5 con kicker 10
-Mejor jugada del bot: Pareja de 6 con kickers 13, 10, 9
--- Pot total: 140 fichas (Main Pot=140, Side Pot=0)
-¡Ganas la mano y te llevas el MAIN POT de 140 fichas!
-Fichas -> Tú: 1070 | Bot: 930 | Pot: 140
+Player hace RAISE de 200 fichas (incluyendo call).
+Bot se retira (FOLD).
+Bot se retira. Tú ganas la mano.
