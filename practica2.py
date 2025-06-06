@@ -428,11 +428,12 @@ class PokerGame:
         phase_map = {0: 'preflop', 1: 'flop', 2: 'turn', 3: 'river'}
         phase = phase_map.get(self.street_index, 'river')
 
+        # Obtener historial para bucket
         history_for_bucket = self.history.split('|')[-1] if '|' in self.history else self.history
         km = trainer.kmeans_models.get(phase)
         nodes = trainer.nodes.get(phase, {})
 
-        # Convertir cartas del bot y comunidad a form. numérico
+        # Convertir cartas a formato numérico
         hole_cards_numeric = convert_cards(self.bot_hole)
         if self.street_index == 0:
             community_numeric = []
@@ -443,39 +444,49 @@ class PokerGame:
         else:
             community_numeric = convert_cards(self.community_cards[:5])
 
-        # A) Calcular cuánto debe pagar para call
+        # Calcular cuánto debe pagar para hacer call
         to_call = self.current_bet - self.bot_current_bet
+        pot_before = self.pot
 
-        # B) Si debe pagar, RESPONDER a un raise del jugador usando equity
+        # =========================
+        #  A) Si debe pagar（to_call > 0）:
+        # =========================
         if to_call > 0:
-            # Calcular equity del bot contra rango
+            # 1) Estimamos equity usando simulación
             eq_bot = real_equity_estimate(
                 hole_cards_numeric,
                 community_numeric,
                 num_sim=500
             )
-            # Si equity muy bajo => fold si hay que pagar
-            if eq_bot < 0.30:
+
+            # 2) Calcular pot odds
+            if pot_before + to_call > 0:
+                pot_odds = to_call / (pot_before + to_call)
+            else:
+                pot_odds = 1.0
+
+            # 3) Si equity < pot_odds + pequeño margen → fold
+            if eq_bot < pot_odds + 0.02:
                 return Action.FOLD, None
-            # Si equity moderado => solo call
+
+            # 4) Si equity moderado → call
             if eq_bot < 0.65:
                 return Action.CALL, None
-            # Si equity alta => reraise proporcional
-            pot_before = self.pot
-            # Decide tamaño del reraise basado en equity
+
+            # 5) Equity alta → reraise proporcional
             if eq_bot < 0.90:
-                # Reraise medio: 100% pot
-                raise_amount = max(int(pot_before * 1.0), 1)
-                # Asegurarse de no superar el stack
-                raise_amount = min(raise_amount, self.bot_chips - to_call)
-                return Action.RAISE_MEDIUM, raise_amount
+                desired_raise = max(int(pot_before * 1.0), 1)
+                desired_raise = min(desired_raise, self.bot_chips - to_call)
+                return Action.RAISE_MEDIUM, desired_raise
             else:
-                # Equity muy alta => all-in reraise
+                # All-in reraise
                 return Action.RAISE_LARGE, self.bot_chips - to_call
 
-        # C) Si no debe pagar (to_call == 0), “abrir” con lógica de tamaño + límite por equity
-        #    Primero bucketizar para estrategia base
+        # =========================
+        #  B) Si to_call == 0 (abrir o check)
+        # =========================
         if km is not None and nodes is not None:
+            # 1) Bucketizar + estrategia CFR
             feats = hand_to_features_enhanced(
                 hole_cards_numeric,
                 community_numeric,
@@ -492,9 +503,10 @@ class PokerGame:
             action_idx = np.random.choice(range(NUM_ACTIONS), p=strat)
             action = Action(action_idx)
         else:
+            # Si no hay modelo CFR (fallback aleatorio)
             action = random.choice(list(Action))
 
-        # Convención de tamaños si decide abrir
+        # 2) Convención de tamaños si decide abrir
         if action == Action.RAISE_SMALL:
             raise_amount = max(int(self.pot * 0.5), 1)
         elif action == Action.RAISE_MEDIUM:
@@ -504,25 +516,38 @@ class PokerGame:
         else:
             raise_amount = None
 
-        # Si abre y su raise supera 40% del stack, verificar equity para ajustar tamaño
+        # =========================
+        #  C) Si abre y su raise supera 40% del stack, revisar pot odds / equity
+        # =========================
         if action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and raise_amount is not None:
+            # Si sugerido > 40% del stack, forzamos revisión
             if raise_amount > self.bot_chips * 0.4:
                 eq_bot = real_equity_estimate(
                     hole_cards_numeric,
                     community_numeric,
                     num_sim=500
                 )
-                pot_before = self.pot
-                if eq_bot < 0.50:
+                # Calcular “pot odds” aproximadas después de este raise
+                candidate_raise = raise_amount
+                if pot_before + candidate_raise > 0:
+                    pot_odds_after_raise = candidate_raise / (pot_before + candidate_raise)
+                else:
+                    pot_odds_after_raise = 1.0
+
+                # Si equity < pot_odds_after_raise + margen, no vale la pena raise → CALL
+                if eq_bot < pot_odds_after_raise + 0.02:
                     action = Action.CALL
                     raise_amount = None
+                # Si equity moderada → reducir a RAISE_SMALL
                 elif eq_bot < 0.70:
                     action = Action.RAISE_SMALL
                     raise_amount = max(int(pot_before * 0.5), 1)
+                # Equity alta → RAISE_MEDIUM
                 elif eq_bot < 0.90:
                     action = Action.RAISE_MEDIUM
                     raise_amount = max(int(pot_before * 1.0), 1)
                 else:
+                    # Equity muy alta → ALL‐IN
                     action = Action.RAISE_LARGE
                     raise_amount = self.bot_chips
 
