@@ -1,4 +1,4 @@
-# practica2.py
+# practica.py
 # raise entero controlado por equity y porcentaje del stack
 import random
 import pickle
@@ -30,6 +30,11 @@ class PokerGame:
         # Contribuciones totales de fichas aportadas al pot por cada jugador
         self.player_contrib = 0
         self.bot_contrib = 0
+
+
+        self.wins_player = 0
+        self.wins_bot = 0
+
 
         # Dealer alterna cada mano: 'player' o 'bot'
         self.dealer = "player"
@@ -98,10 +103,38 @@ class PokerGame:
         self.pot = self.player_current_bet + self.bot_current_bet
         self.print_chip_counts()
         return True
+    
+    def force_allin_preflop(self):
+        print("\n⚠️  All-in forzado en preflop por falta de fichas.")
+
+        # Ambos meten todas sus fichas disponibles
+        contrib_player = self.player_chips
+        contrib_bot = self.bot_chips
+
+        self.player_contrib = contrib_player
+        self.bot_contrib = contrib_bot
+
+        self.pot = contrib_player + contrib_bot
+
+        self.player_current_bet = contrib_player
+        self.bot_current_bet = contrib_bot
+
+        # Vaciamos sus stacks (all-in)
+        self.player_chips = 0
+        self.bot_chips = 0
+
+        print(f"Tú vas all-in con {contrib_player} fichas.")
+        print(f"Bot va all-in con {contrib_bot} fichas.")
+        print(f"Pot total: {self.pot}")
+
+        # Mostramos comunidad y resolvemos showdown directo
+        self.reveal_remaining_community_cards()
+        self.showdown()
+
 
     # --- Inicia mano nueva ---
     def start_hand(self):
-        # Reseteamos contribuciones y apuestas
+        # Reseteamos estado de mano
         self.player_contrib = 0
         self.bot_contrib = 0
         self.street_index = 0
@@ -114,9 +147,19 @@ class PokerGame:
         # Alternamos dealer
         self.dealer = "bot" if self.dealer == "player" else "player"
 
-        # Reparto
+        # Barajar y repartir
         self.shuffle_deck()
         self.deal_cards()
+
+        # 🔥 CHECK: ¿algún jugador no puede pagar su ciega?
+        if self.dealer == "player":
+            if self.player_chips < self.small_blind or self.bot_chips < self.big_blind:
+                self.force_allin_preflop()
+                return "allin"
+        else:
+            if self.bot_chips < self.small_blind or self.player_chips < self.big_blind:
+                self.force_allin_preflop()
+                return "allin"
 
         if not self.post_blinds():
             return False
@@ -125,6 +168,7 @@ class PokerGame:
         print(f"Dealer: {self.dealer.upper()}")
         print("Tus cartas:", self.player_hole)
         return True
+
 
     # --- Aplicar acción de jugador o bot ---
     def apply_action(self, actor, action: Action, raise_amount=None):
@@ -554,6 +598,15 @@ class PokerGame:
                     action = Action.RAISE_LARGE
                     raise_amount = self.bot_chips
 
+        if action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and raise_amount is not None:
+            max_legal_raise = self.bot_chips - (self.current_bet - self.bot_current_bet)
+            raise_amount = max(0, min(raise_amount, max_legal_raise))
+
+            # Si después del límite no queda nada para subir, convierte a CALL
+            if raise_amount <= 0:
+                action = Action.CALL
+                raise_amount = None
+
         return action, raise_amount
 
     # --- Obtener quién inicia la ronda de apuestas ---
@@ -696,6 +749,11 @@ class PokerGame:
         # Después de la última calle (river) → showdown normal
         self.showdown()
         return True
+    def _check_and_update_wins(self):
+        if self.player_chips == 0:
+            self.wins_bot += 1
+        elif self.bot_chips == 0:
+            self.wins_player += 1
 
 
 def main():
