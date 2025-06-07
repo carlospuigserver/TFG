@@ -11,14 +11,15 @@ from bucket_features import hand_to_features_enhanced  # Importamos la función 
 from bucket_features import real_equity_estimate       # Importamos la función de equity
 
 class PokerGame:
-    def __init__(self, initial_stack=1000, small_blind=10, big_blind=20):
+    def __init__(self, player_chips=None, bot_chips=None, initial_stack=1000, small_blind=10, big_blind=20):
         self.initial_stack = initial_stack
         self.small_blind = small_blind
         self.big_blind = big_blind
 
         # Stacks
-        self.player_chips = initial_stack
-        self.bot_chips = initial_stack
+        # Si no se pasan stacks, usar el valor inicial por defecto
+        self.player_chips = player_chips if player_chips is not None else initial_stack
+        self.bot_chips    = bot_chips    if bot_chips    is not None else initial_stack
 
         # Pot y apuestas
         self.pot = 0

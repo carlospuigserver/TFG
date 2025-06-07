@@ -47,7 +47,11 @@ def start_hand():
     global game, current_hand_logs, last_dealer
 
     # Crear una nueva partida y alternar el dealer manualmente
-    game = PokerGame()
+    # Heredar los stacks anteriores y alternar el dealer
+    player_stack = game.player_chips if game else 1000
+    bot_stack = game.bot_chips if game else 1000
+    game = PokerGame(player_chips=player_stack, bot_chips=bot_stack)
+
     game.dealer = "bot" if last_dealer == "player" else "player"
     last_dealer = game.dealer  # Actualizar el global
 
