@@ -48,16 +48,34 @@ def start_hand():
 
     # Crear una nueva partida y alternar el dealer manualmente
     # Heredar los stacks anteriores y alternar el dealer
-    player_stack = game.player_chips if game else 1000
-    bot_stack = game.bot_chips if game else 1000
+    if game and game.player_chips > 0 and game.bot_chips > 0:
+        player_stack = game.player_chips
+        bot_stack = game.bot_chips
+    else:
+        player_stack = 1000
+        bot_stack = 1000
+
     game = PokerGame(player_chips=player_stack, bot_chips=bot_stack)
 
     game.dealer = "bot" if last_dealer == "player" else "player"
     last_dealer = game.dealer  # Actualizar el global
 
-    started = game.start_hand()
-    if not started:
-        return jsonify({'error': 'No hay fichas para las blinds.'}), 400
+    result = game.start_hand()
+
+    if result == 'allin':
+        logs = [
+            "=== Mano forzada con all-in automático ===",
+            f"Tus cartas: {game.player_hole}",
+            f"Cartas del bot: {game.bot_hole}",
+            f"Comunitarias: {game.community_cards}",
+            format_chips(),
+            "--- Showdown directo por falta de fichas ---"
+        ]
+        current_hand_logs[:] = logs
+        return _resolve_showdown(current_hand_logs.copy())
+    elif not result:
+        return jsonify({'error': 'Error inesperado al iniciar la mano.'}), 400
+
 
     # Construir log inicial con claridad sobre quién paga cada ciega
     if game.dealer == "player":

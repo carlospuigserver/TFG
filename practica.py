@@ -68,15 +68,14 @@ class PokerGame:
             sb = self.small_blind
             bb = self.big_blind
             if self.player_chips < sb or self.bot_chips < bb:
-                print("No hay fichas para las blinds.")
-                return False
+                print("Uno de los jugadores no puede cubrir las ciegas. All-in forzado.")
+                return 'allin'
             # El jugador hace SB, el bot hace BB
             self.player_chips -= sb
             self.bot_chips -= bb
             self.player_current_bet = sb
             self.bot_current_bet = bb
             self.current_bet = bb
-            # Actualizamos contribuciones
             self.player_contrib = sb
             self.bot_contrib = bb
             print(f"Dealer: Jugador -> SB={sb}, Bot -> BB={bb}")
@@ -84,15 +83,14 @@ class PokerGame:
             sb = self.small_blind
             bb = self.big_blind
             if self.bot_chips < sb or self.player_chips < bb:
-                print("No hay fichas para las blinds.")
-                return False
+                print("Uno de los jugadores no puede cubrir las ciegas. All-in forzado.")
+                return 'allin'
             # El bot hace SB, el jugador hace BB
             self.bot_chips -= sb
             self.player_chips -= bb
             self.bot_current_bet = sb
             self.player_current_bet = bb
             self.current_bet = bb
-            # Actualizamos contribuciones
             self.bot_contrib = sb
             self.player_contrib = bb
             print(f"Dealer: Bot -> SB={sb}, Jugador -> BB={bb}")
