@@ -1,331 +1,336 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Partida - Nash Poker</title>
-  <style>
-    /* ----------------------------------------------------------
-       1) La mesa completa de fondo (mesa.png)
-    ---------------------------------------------------------- */
-    body {
-      margin: 0;
-      padding: 0;
-      background: url("mesa.png") no-repeat center center / cover;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-family: Arial, sans-serif;
-      color: white;
-    }
 
-    /* ----------------------------------------------------------
-       2) Contenedor principal
-    ---------------------------------------------------------- */
-    #gameContainer {
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
 
-    /* ----------------------------------------------------------
-       3) Barra de estado en la parte superior: Pot / Fichas / Dealer / Turno
-    ---------------------------------------------------------- */
-    #statusBar {
-      position: absolute;
-      top: 5%;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 2rem;
-      font-size: 1.2rem;
-      background: rgba(0, 0, 0, 0.4);
-      padding: 0.5rem 1rem;
-      border-radius: 8px;
-      z-index: 2;
-    }
+  <!DOCTYPE html>
+  <html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Partida - Nash Poker</title>
+    <style>
+      /* ----------------------------------------------------------
+        1) La mesa completa de fondo (mesa.png)
+      ---------------------------------------------------------- */
+      body {
+        margin: 0;
+        padding: 0;
+        background: url("mesa.png") no-repeat center center / cover;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: Arial, sans-serif;
+        color: white;
+      }
 
-    /* ----------------------------------------------------------
-       4) Cartas del bot (arriba - centrado)
-    ---------------------------------------------------------- */
-    #botCards {
-      position: absolute;
-      top: 20%;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 0.5rem;
-      z-index: 2;
-    }
-    #botCards img {
-      width: 90px;
-      height: 120px;
-      transform: rotate(180deg); /* giradas para que apunten hacia abajo */
-    }
+      /* ----------------------------------------------------------
+        2) Contenedor principal
+      ---------------------------------------------------------- */
+      #gameContainer {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
 
-    /* ----------------------------------------------------------
-       5) Mensaje del bot (debajo de sus cartas)
-    ---------------------------------------------------------- */
-    #botMessage {
-      position: absolute;
-      top: 35%;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 1rem;
-      font-weight: bold;
-      text-shadow: 0 0 4px black;
-      min-height: 1.5rem;
-      z-index: 2;
-      width: 300px;
-      text-align: center;
-    }
+      /* ----------------------------------------------------------
+        3) Barra de estado en la parte superior: Pot / Fichas / Dealer / Turno
+      ---------------------------------------------------------- */
+      #statusBar {
+        position: absolute;
+        top: 5%;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 2rem;
+        font-size: 1.2rem;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        z-index: 2;
+      }
 
-    /* ----------------------------------------------------------
-       5.1) Mensaje central: "Showdown!"
-    ---------------------------------------------------------- */
-    #showdownCenter {
-      position: absolute;
-      top: 39%;                /* Ajustado para centrar entre bot y comunitarias */
-      left: 50%;
-      transform: translateX(-50%);
-      text-align: center;
-      font-size: 1.3rem;
-      font-weight: bold;
-      text-shadow: 0 0 5px black;
-      color: #ffd700; /* dorado */
-      line-height: 1.4;
-      z-index: 2;
-      white-space: pre-line;
-      min-height: 2rem;        /* Espacio reservado aunque no haya showdown */
-    }
+      /* ----------------------------------------------------------
+        4) Cartas del bot (arriba - centrado)
+      ---------------------------------------------------------- */
+      #botCards {
+        position: absolute;
+        top: 20%;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.5rem;
+        z-index: 2;
+      }
+      #botCards img {
+        width: 90px;
+        height: 120px;
+        transform: rotate(180deg); /* giradas para que apunten hacia abajo */
+      }
 
-    /* ----------------------------------------------------------
-       5.2) Detalles de las tres líneas (derecha, multilinea)
-    ---------------------------------------------------------- */
-    #showdownDetails {
-      position: absolute;
-      top: 50%;                /* Alineado con las comunitarias */
-      right: 1%;               /* Más apartado de las cartas comunitarias */
-      width: 34%;              /* Ancho suficiente para no cortar el texto */
-      font-size: 1.1rem;
-      font-weight: bold;
-      text-shadow: 0 0 4px black;
-      color: #ffd700; /* dorado */
-      line-height: 1.4;
-      z-index: 2;
-      white-space: pre-line;   /* Permite varias líneas */
-      text-align: left;
-    }
+      /* ----------------------------------------------------------
+        5) Mensaje del bot (debajo de sus cartas)
+      ---------------------------------------------------------- */
+      #botMessage {
+        position: absolute;
+        top: 35%;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 1rem;
+        font-weight: bold;
+        text-shadow: 0 0 4px black;
+        min-height: 1.5rem;
+        z-index: 2;
+        width: 300px;
+        text-align: center;
+      }
 
-    /* ----------------------------------------------------------
-       6) Cartas comunitarias (centro de la mesa)
-    ---------------------------------------------------------- */
-    #communityCards {
-      position: absolute;
-      top: 45%;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 0.5rem;
-      z-index: 2;
-    }
-    #communityCards img {
-      width: 90px;
-      height: 120px;
-      transform: none;
-    }
+      /* ----------------------------------------------------------
+        5.1) Mensaje central: "Showdown!"
+      ---------------------------------------------------------- */
+      #showdownCenter {
+        position: absolute;
+        top: 39%;                /* Ajustado para centrar entre bot y comunitarias */
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        font-size: 1.3rem;
+        font-weight: bold;
+        text-shadow: 0 0 5px black;
+        color: #ffd700; /* dorado */
+        line-height: 1.4;
+        z-index: 2;
+        white-space: pre-line;
+        min-height: 2rem;        /* Espacio reservado aunque no haya showdown */
+      }
 
-    /* ----------------------------------------------------------
-       7) Cartas del jugador (abajo - centrado)
-    ---------------------------------------------------------- */
-    #playerCards {
-      position: absolute;
-      bottom: 20%;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 0.5rem;
-      z-index: 2;
-    }
-    #playerCards img {
-      width: 90px;
-      height: 120px;
-      transform: none;
-    }
+      /* ----------------------------------------------------------
+        5.2) Detalles de las tres líneas (derecha, multilinea)
+      ---------------------------------------------------------- */
+      #showdownDetails {
+        position: absolute;
+        top: 50%;                /* Alineado con las comunitarias */
+        right: 1%;               /* Más apartado de las cartas comunitarias */
+        width: 34%;              /* Ancho suficiente para no cortar el texto */
+        font-size: 1.1rem;
+        font-weight: bold;
+        text-shadow: 0 0 4px black;
+        color: #ffd700; /* dorado */
+        line-height: 1.4;
+        z-index: 2;
+        white-space: pre-line;   /* Permite varias líneas */
+        text-align: left;
+      }
 
-    /* ----------------------------------------------------------
-       8) Mensaje del jugador (sobre sus cartas)
-    ---------------------------------------------------------- */
-    #playerMessage {
-      position: absolute;
-      bottom: 35%;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 1rem;
-      font-weight: bold;
-      text-shadow: 0 0 4px black;
-      min-height: 1.5rem;
-      z-index: 2;
-      width: 300px;
-      text-align: center;
-    }
+      /* ----------------------------------------------------------
+        6) Cartas comunitarias (centro de la mesa)
+      ---------------------------------------------------------- */
+      #communityCards {
+        position: absolute;
+        top: 45%;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.5rem;
+        z-index: 2;
+      }
+      #communityCards img {
+        width: 90px;
+        height: 120px;
+        transform: none;
+      }
 
-    /* ----------------------------------------------------------
-       9) Botones de Fold / Call / Raise + input
-    ---------------------------------------------------------- */
-    #actionsContainer {
-      position: absolute;
-      bottom: 12%;          /* un poco más alto para no tapar las cartas */
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      z-index: 3;           /* sobre el resto */
-    }
-    #actionsContainer button {
-      background: #006600;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 0.7rem 1.2rem;
-      cursor: pointer;
-      font-size: 1.2rem;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    }
-    #actionsContainer button:disabled {
-      background: #444;
-      cursor: not-allowed;
-    }
-    #actionsContainer input[type="number"] {
-      width: 70px;
-      padding: 0.4rem;
-      border-radius: 6px;
-      border: 1px solid #444;
-      background: #222;
-      color: #fff;
-      font-size: 1rem;
-    }
+      /* ----------------------------------------------------------
+        7) Cartas del jugador (abajo - centrado)
+      ---------------------------------------------------------- */
+      #playerCards {
+        position: absolute;
+        bottom: 20%;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 0.5rem;
+        z-index: 2;
+      }
+      #playerCards img {
+        width: 90px;
+        height: 120px;
+        transform: none;
+      }
 
-    /* ----------------------------------------------------------
-       10) Botones “Nueva Partida” y “Estadísticas” (HTML estático)
-            Tamaño igual a los botones de acción; ocúltalos por defecto.
-            Posición mucho más a la izquierda para no solaparse.
-    ---------------------------------------------------------- */
-    #sideButtons {
-      position: absolute;
-      top: 52%;
-      left: 170px;  /* A la izquierda de las comunitarias */
-      transform: translateY(-50%);
-      display: none;           /* Oculto hasta que termine la mano */
-      flex-direction: row;
-      gap: 1rem;
-      z-index: 2;
-    }
+      /* ----------------------------------------------------------
+        8) Mensaje del jugador (sobre sus cartas)
+      ---------------------------------------------------------- */
+      #playerMessage {
+        position: absolute;
+        bottom: 35%;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 1rem;
+        font-weight: bold;
+        text-shadow: 0 0 4px black;
+        min-height: 1.5rem;
+        z-index: 2;
+        width: 300px;
+        text-align: center;
+      }
 
-    .side-btn {
-      background: #f9faf9;
-      color: rgb(3, 3, 3);
-      border: none;
-      border-radius: 6px;
-      padding: 0.7rem 1.2rem;
-      cursor: pointer;
-      font-size: 1.2rem;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-      transition: all 0.2s;
-      font-weight: 500;
-    }
+      /* ----------------------------------------------------------
+        9) Botones de Fold / Call / Raise + input
+      ---------------------------------------------------------- */
+      #actionsContainer {
+        position: absolute;
+        bottom: 12%;          /* un poco más alto para no tapar las cartas */
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        z-index: 3;           /* sobre el resto */
+      }
+      #actionsContainer button {
+        background: #006600;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 0.7rem 1.2rem;
+        cursor: pointer;
+        font-size: 1.2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      }
+      #actionsContainer button:disabled {
+        background: #444;
+        cursor: not-allowed;
+      }
+      #actionsContainer input[type="number"] {
+        width: 70px;
+        padding: 0.4rem;
+        border-radius: 6px;
+        border: 1px solid #444;
+        background: #222;
+        color: #fff;
+        font-size: 1rem;
+      }
 
-    .side-btn:disabled {
-      background: #f9faf9;
-      cursor: not-allowed;
-    }
+      /* ----------------------------------------------------------
+        10) Botones “Nueva Partida” y “Estadísticas” (HTML estático)
+              Tamaño igual a los botones de acción; ocúltalos por defecto.
+              Posición mucho más a la izquierda para no solaparse.
+      ---------------------------------------------------------- */
+      #sideButtons {
+        position: absolute;
+        top: 52%;
+        left: 170px;  /* A la izquierda de las comunitarias */
+        transform: translateY(-50%);
+        display: none;           /* Oculto hasta que termine la mano */
+        flex-direction: row;
+        gap: 1rem;
+        z-index: 2;
+      }
 
-    .side-btn.new {
-      background: #f9faf9; /* verde */
-    }
-    .side-btn.new:hover {
-      background: #f9faf9;
-      box-shadow: 0 0 20px #f9faf9;
-      transform: scale(1.1);
-    }
-    .side-btn.new:active {
-      background: #f9faf9;
-      transform: scale(0.98);
-      box-shadow: none;
-    }
+      .side-btn {
+        background: #f9faf9;
+        color: rgb(3, 3, 3);
+        border: none;
+        border-radius: 6px;
+        padding: 0.7rem 1.2rem;
+        cursor: pointer;
+        font-size: 1.2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        transition: all 0.2s;
+        font-weight: 500;
+      }
 
-    .side-btn.stats {
-      background: #f9faf9; /* azul claro */
-    }
-    .side-btn.stats:hover {
-      background: #f9faf9;
-      box-shadow: 0 0 20px #f9faf9;
-      transform: scale(1.1);
-    }
-    .side-btn.stats:active {
-      background: #f9faf9;
-      transform: scale(0.98);
-      box-shadow: none;
-    }
-  </style>
-</head>
-<body>
-  <div id="gameContainer">
-    <!-- 3) Barra de estado: Pot / Fichas Jugador / Fichas Bot / Dealer / Turno -->
-    <div id="statusBar">
-      <div>Pot: <span id="pot">0</span></div>
-      <div>Tú: <span id="playerChips">0</span></div>
-      <div>Bot: <span id="botChips">0</span></div>
-      <div>Dealer: <span id="dealerDisplay">–</span></div>
-      <div> <span id="toActDisplay"></span></div>
+      .side-btn:disabled {
+        background: #f9faf9;
+        cursor: not-allowed;
+      }
+
+      .side-btn.new {
+        background: #f9faf9; /* verde */
+      }
+      .side-btn.new:hover {
+        background: #f9faf9;
+        box-shadow: 0 0 20px #f9faf9;
+        transform: scale(1.1);
+      }
+      .side-btn.new:active {
+        background: #f9faf9;
+        transform: scale(0.98);
+        box-shadow: none;
+      }
+
+      .side-btn.stats {
+        background: #f9faf9; /* azul claro */
+      }
+      .side-btn.stats:hover {
+        background: #f9faf9;
+        box-shadow: 0 0 20px #f9faf9;
+        transform: scale(1.1);
+      }
+      .side-btn.stats:active {
+        background: #f9faf9;
+        transform: scale(0.98);
+        box-shadow: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gameContainer">
+      <!-- 3) Barra de estado: Pot / Fichas Jugador / Fichas Bot / Dealer / Turno -->
+      <div id="statusBar">
+        <div>Pot: <span id="pot">0</span></div>
+        <div>Tú: <span id="playerChips">0</span></div>
+        <div>Bot: <span id="botChips">0</span></div>
+        <div>Dealer: <span id="dealerDisplay">–</span></div>
+        <div> <span id="toActDisplay"></span></div>
+        <div>Marcador: Tú <span id="playerWins">0</span> - <span id="botWins">0</span> Bot</div>
+        <div>Ciegas: SB=<span id="sbDisplay">20</span>, BB=<span id="bbDisplay">40</span></div>
+
+      </div>
+
+      <!-- 4) Cartas del bot (boca abajo al inicio) -->
+      <div id="botCards"></div>
+
+      <!-- 5) Mensaje del bot (solo la última acción relevante) -->
+      <div id="botMessage"></div>
+
+      <!-- 5.1) Mensaje central: "Showdown!" -->
+      <div id="showdownCenter"></div>
+
+      <!-- 5.2) Detalles: ganador, tu mano y mano bot (derecha) -->
+      <div id="showdownDetails"></div>
+
+      <!-- 6) Cartas comunitarias -->
+      <div id="communityCards"></div>
+
+      <!-- 7) Cartas del jugador -->
+      <div id="playerCards"></div>
+
+      <!-- 8) Mensaje del jugador (solo la última acción relevante) -->
+      <div id="playerMessage"></div>
+
+      <!-- 9) Botones de Fold / Call / Raise + input -->
+      <div id="actionsContainer"></div>
+
+      <!-- 10) Botones “Nueva Partida” y “Estadísticas” (HTML estático) -->
+      <div id="sideButtons">
+        <button class="side-btn new" id="btnNuevaMano">Nueva Partida</button>
+        <button class="side-btn stats" id="btnEstadisticas" disabled>Estadísticas</button>
+      </div>
     </div>
 
-    <!-- 4) Cartas del bot (boca abajo al inicio) -->
-    <div id="botCards"></div>
+    <!-- Importamos game.js -->
+    <script src="game.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        // Enlazar los botones estáticos a sus funciones
+        document.getElementById('btnNuevaMano').onclick = iniciarPartida;
+        document.getElementById('btnEstadisticas').onclick = () => {
+          window.location.href = 'stats.html';
+        };
 
-    <!-- 5) Mensaje del bot (solo la última acción relevante) -->
-    <div id="botMessage"></div>
-
-    <!-- 5.1) Mensaje central: "Showdown!" -->
-    <div id="showdownCenter"></div>
-
-    <!-- 5.2) Detalles: ganador, tu mano y mano bot (derecha) -->
-    <div id="showdownDetails"></div>
-
-    <!-- 6) Cartas comunitarias -->
-    <div id="communityCards"></div>
-
-    <!-- 7) Cartas del jugador -->
-    <div id="playerCards"></div>
-
-    <!-- 8) Mensaje del jugador (solo la última acción relevante) -->
-    <div id="playerMessage"></div>
-
-    <!-- 9) Botones de Fold / Call / Raise + input -->
-    <div id="actionsContainer"></div>
-
-    <!-- 10) Botones “Nueva Partida” y “Estadísticas” (HTML estático) -->
-    <div id="sideButtons">
-      <button class="side-btn new" id="btnNuevaMano">Nueva Partida</button>
-      <button class="side-btn stats" id="btnEstadisticas" disabled>Estadísticas</button>
-    </div>
-  </div>
-
-  <!-- Importamos game.js -->
-  <script src="game.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Enlazar los botones estáticos a sus funciones
-      document.getElementById('btnNuevaMano').onclick = iniciarPartida;
-      document.getElementById('btnEstadisticas').onclick = () => {
-        window.location.href = 'stats.html';
-      };
-
-      // Iniciar la primera mano al cargar la página
-      iniciarPartida();
-    });
-  </script>
-</body>
-</html>
+        // Iniciar la primera mano al cargar la página
+        iniciarPartida();
+      });
+    </script>
+  </body>
+  </html>

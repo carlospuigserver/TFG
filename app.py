@@ -136,7 +136,10 @@ def start_hand():
         'history': game.history,
         'to_act': game.get_first_actor(),
         'log': current_hand_logs.copy(),
-        'hand_ended': False
+        'hand_ended': False,
+        'sb': game.small_blind,     # <--- AÑADIR
+        'bb': game.big_blind        # <--- AÑADIR
+        
     })
 
 
@@ -252,7 +255,9 @@ def player_action():
             'history': game.history,
             'to_act': "player",
             'log': current_hand_logs.copy(),
-            'hand_ended': False
+            'hand_ended': False,
+            'sb': game.small_blind,
+            'bb': game.big_blind
         })
 
     # 1) CALL tras RAISE del bot
@@ -305,7 +310,9 @@ def player_action():
         'history': game.history,
         'to_act': "player",
         'log': current_hand_logs.copy(),
-        'hand_ended': False
+        'hand_ended': False,
+        'sb': game.small_blind,
+        'bb': game.big_blind
     })
 
 
@@ -351,7 +358,9 @@ def _end_hand_response(all_logs, show_bot_cards=True):
         'history': game.history,
         'to_act': None,
         'log': all_logs,
-        'hand_ended': True
+        'hand_ended': True,
+        'sb': game.small_blind,   # ✅ AÑADIR AQUÍ
+        'bb': game.big_blind     
     }
 
     # Reiniciar variables para la próxima mano
@@ -383,7 +392,9 @@ def _resolve_showdown(logs_before):
     contrib_bot = game.bot_contrib
     main_contrib = min(contrib_player, contrib_bot)
     main_pot = main_contrib * 2
-    side_pot = (contrib_player + contrib_bot) - main_pot
+    side_pot = abs(contrib_player - contrib_bot)
+    total_pot = main_pot + side_pot
+
 
     cmp = game.compare_hands(player_best, bot_best)
 
@@ -423,11 +434,12 @@ def _resolve_showdown(logs_before):
             else:
                 game.player_chips += side_pot
 
+    
+    game.pot = 0
     showdown_logs.append(format_chips())
     current_hand_logs = logs_before + showdown_logs
 
     # Limpiar pot
-    game.pot = 0
     return _end_hand_response(current_hand_logs.copy(), show_bot_cards=True)
 
 if __name__ == '__main__':

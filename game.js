@@ -1,4 +1,3 @@
-// game.js
 // ==========================================================
 // VARIABLES GLOBALES Y REFERENCIAS A ELEMENTOS DEL DOM
 // ==========================================================
@@ -7,6 +6,10 @@ const playerChipsSpan    = document.getElementById('playerChips');
 const botChipsSpan       = document.getElementById('botChips');
 const dealerSpan         = document.getElementById('dealerDisplay');
 const toActSpan          = document.getElementById('toActDisplay');
+const playerWinsSpan     = document.getElementById('playerWins');
+const botWinsSpan        = document.getElementById('botWins');
+const sbSpan             = document.getElementById('sbDisplay');
+const bbSpan             = document.getElementById('bbDisplay');
 
 const botCardsDiv        = document.getElementById('botCards');
 const playerCardsDiv     = document.getElementById('playerCards');
@@ -17,15 +20,14 @@ const showdownDetailsDiv = document.getElementById('showdownDetails');
 const playerMessageDiv   = document.getElementById('playerMessage');
 const actionsContainer   = document.getElementById('actionsContainer');
 
-// Referencias a los botones estáticos
 const btnNuevaMano       = document.getElementById('btnNuevaMano');
 const btnEstadisticas    = document.getElementById('btnEstadisticas');
 const sideButtonsDiv     = document.getElementById('sideButtons');
 
 let gameState = null;
+let marcador = { player: 0, bot: 0 };
+let manosJugadas = 0;
 
-// ----------------------------------------------------------
-// Convertir un código de carta (p.ej. "Ac", "Jh", etc.) EN <img>
 // ----------------------------------------------------------
 function cardToImg(card) {
   if (card === "card_back") {
@@ -36,8 +38,6 @@ function cardToImg(card) {
 }
 
 // ----------------------------------------------------------
-// Pinta las cartas en pantalla (bot, jugador, comunitarias)
-// ----------------------------------------------------------
 function renderCards() {
   botCardsDiv.innerHTML       = gameState.bot_hole.map(c => cardToImg(c)).join('');
   playerCardsDiv.innerHTML    = gameState.player_hole.map(c => cardToImg(c)).join('');
@@ -45,18 +45,16 @@ function renderCards() {
 }
 
 // ----------------------------------------------------------
-// Actualiza la barra de estado (pot, stacks, dealer, turno)
-// ----------------------------------------------------------
 function updateStatus() {
   potSpan.textContent         = gameState.pot;
   playerChipsSpan.textContent = gameState.player_chips;
   botChipsSpan.textContent    = gameState.bot_chips;
   dealerSpan.textContent      = gameState.dealer;
+
+  sbSpan.textContent          = gameState.sb || 10;
+  bbSpan.textContent          = gameState.bb || 20;
 }
 
-// ----------------------------------------------------------
-// Mostrar la última acción relevante del bot en pantalla
-// (extraída de los logs que devuelve el servidor).
 // ----------------------------------------------------------
 function updateBotMessage(logs) {
   const lastBotMsg = logs.slice().reverse()
@@ -64,8 +62,6 @@ function updateBotMessage(logs) {
   botMessageDiv.textContent = lastBotMsg;
 }
 
-// ----------------------------------------------------------
-// Habilitar/Deshabilitar botones de acción del jugador
 // ----------------------------------------------------------
 function enableActions(enable) {
   actionsContainer.innerHTML  = '';
@@ -106,8 +102,6 @@ function enableActions(enable) {
 }
 
 // ----------------------------------------------------------
-// Enviar acción del jugador al backend
-// ----------------------------------------------------------
 async function sendPlayerAction(action, raise_amount = null) {
   playerMessageDiv.textContent = `Jugador: ${action}${raise_amount ? ' ' + raise_amount : ''}`;
 
@@ -132,6 +126,20 @@ async function sendPlayerAction(action, raise_amount = null) {
   }
 
   if (data.hand_ended) {
+    if (data.player_chips === 0) marcador.bot++;
+    if (data.bot_chips === 0) marcador.player++;
+    manosJugadas++;
+
+    playerWinsSpan.textContent = marcador.player;
+    botWinsSpan.textContent    = marcador.bot;
+
+    sbSpan.textContent = data.sb || 10;
+    bbSpan.textContent = data.bb || 20;
+
+    if (manosJugadas % 4 === 0) {
+      showdownCenterDiv.textContent = "🔺 Ciegas aumentadas";
+    }
+
     const showdownLine = data.log.find(m =>
       m.toLowerCase().startsWith("showdown")
     ) || "";
@@ -152,7 +160,6 @@ async function sendPlayerAction(action, raise_amount = null) {
     ) || "";
 
     showdownCenterDiv.textContent = showdownLine;
-
     const detalles = [winnerLine, tuMejorLine, botMejorLine]
       .filter(line => line)
       .join("\n");
@@ -166,35 +173,27 @@ async function sendPlayerAction(action, raise_amount = null) {
     return;
   }
 
-  // 6) Si ahora toca al jugador:
-if (data.to_act === "player") {
-  const hayAccionBot = data.log.some(line => line.toLowerCase().startsWith("bot"));
-  if (hayAccionBot) {
-    const ultimaAccion = data.log.slice().reverse().find(line => line.toLowerCase().startsWith("bot"));
-    botMessageDiv.textContent = ultimaAccion;
-  }
-  setTimeout(() => {
-    enableActions(true);
-  }, 300);
-}
-
-// 7) Si ahora toca al bot:
-else {
-  const hayAccionBot = data.log.some(line => line.toLowerCase().startsWith("bot"));
-  if (hayAccionBot) {
-    const ultimaAccion = data.log.slice().reverse().find(line => line.toLowerCase().startsWith("bot"));
-    botMessageDiv.textContent = ultimaAccion;
+  if (data.to_act === "player") {
+    const hayAccionBot = data.log.some(line => line.toLowerCase().startsWith("bot"));
+    if (hayAccionBot) {
+      const ultimaAccion = data.log.slice().reverse().find(line => line.toLowerCase().startsWith("bot"));
+      botMessageDiv.textContent = ultimaAccion;
+    }
+    setTimeout(() => {
+      enableActions(true);
+    }, 300);
   } else {
-    botMessageDiv.textContent = 'Esperando acción del bot...';
+    const hayAccionBot = data.log.some(line => line.toLowerCase().startsWith("bot"));
+    if (hayAccionBot) {
+      const ultimaAccion = data.log.slice().reverse().find(line => line.toLowerCase().startsWith("bot"));
+      botMessageDiv.textContent = ultimaAccion;
+    } else {
+      botMessageDiv.textContent = 'Esperando acción del bot...';
+    }
+    enableActions(false);
   }
-  enableActions(false);
 }
 
-
-}
-
-// ----------------------------------------------------------
-// Iniciar una nueva mano
 // ----------------------------------------------------------
 async function iniciarPartida() {
   btnNuevaMano.disabled    = true;
@@ -220,40 +219,48 @@ async function iniciarPartida() {
   renderCards();
   updateStatus();
 
-  // ✅ NUEVO BLOQUE FINAL ROBUSTO
-if (gameState.hand_ended) {
-  enableActions(false);
-  updateBotMessage(gameState.log);
-  playerMessageDiv.textContent = 'Mano terminada. Elige “Nueva Partida” o “Estadísticas”.';
-  btnNuevaMano.disabled = false;
-  btnEstadisticas.disabled = false;
-  sideButtonsDiv.style.display = 'flex';
-  return;
-}
+  if (gameState.hand_ended) {
+    if (gameState.player_chips === 0) marcador.bot++;
+    if (gameState.bot_chips === 0) marcador.player++;
+    manosJugadas++;
 
-// ✅ Mostrar acción del bot si ya actuó
-if (gameState.log) {
-  updateBotMessage(gameState.log);
-}
+    playerWinsSpan.textContent = marcador.player;
+    botWinsSpan.textContent    = marcador.bot;
 
-// ✅ Decidir turno realista
-if (gameState.to_act === "player") {
-  enableActions(true);
-  playerMessageDiv.textContent = "Tu turno: elige acción.";
-} else {
-  // 🧠 Si ya hay acción del bot en el log, no mostramos "esperando"
-  const hayAccionBot = gameState.log.some(line => line.toLowerCase().startsWith("bot"));
-  if (hayAccionBot) {
-    botMessageDiv.textContent = gameState.log.find(line => line.toLowerCase().startsWith("bot"));
-    enableActions(true);  // Porque es el turno del jugador después de la acción del bot
-  } else {
+    sbSpan.textContent = gameState.sb || 10;
+    bbSpan.textContent = gameState.bb || 20;
+
+    if (manosJugadas % 4 === 0) {
+      showdownCenterDiv.textContent = "🔺 Ciegas aumentadas";
+    }
+
     enableActions(false);
-    botMessageDiv.textContent = 'Esperando acción del bot...';
+    updateBotMessage(gameState.log);
+    playerMessageDiv.textContent = 'Mano terminada. Elige “Nueva Partida” o “Estadísticas”.';
+    btnNuevaMano.disabled = false;
+    btnEstadisticas.disabled = false;
+    sideButtonsDiv.style.display = 'flex';
+    return;
   }
-}
 
+  if (gameState.log) {
+    updateBotMessage(gameState.log);
+  }
 
-  // 💡 Consola útil para debug
+  if (gameState.to_act === "player") {
+    enableActions(true);
+    playerMessageDiv.textContent = "Tu turno: elige acción.";
+  } else {
+    const hayAccionBot = gameState.log.some(line => line.toLowerCase().startsWith("bot"));
+    if (hayAccionBot) {
+      botMessageDiv.textContent = gameState.log.find(line => line.toLowerCase().startsWith("bot"));
+      enableActions(true);
+    } else {
+      enableActions(false);
+      botMessageDiv.textContent = 'Esperando acción del bot...';
+    }
+  }
+
   console.log("to_act:", gameState.to_act);
   console.log("log:", gameState.log);
 }

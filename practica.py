@@ -123,7 +123,7 @@ class PokerGame:
 
         self.player_contrib = contrib_player
         self.bot_contrib = contrib_bot
-        self.pot = contrib_player + contrib_bot
+        self.pot = 0
 
         self.player_current_bet = contrib_player
         self.bot_current_bet = contrib_bot
@@ -163,8 +163,32 @@ class PokerGame:
 
         # 👇⚠️ Check ciegas antes de arrancar
         result = self.post_blinds()
+        self.player_contrib = self.player_current_bet  # ← Añadir esto
+        self.bot_contrib = self.bot_current_bet        # ← Añadir esto
+
         if result == 'allin':
+            # Calcular correctamente los aportes REALES de cada jugador antes del allin
+            if self.dealer == "player":
+                sb = min(self.small_blind, self.player_chips + self.player_current_bet)
+                bb = min(self.big_blind, self.bot_chips + self.bot_current_bet)
+                self.player_contrib = sb
+                self.bot_contrib = bb
+            else:
+                sb = min(self.small_blind, self.bot_chips + self.bot_current_bet)
+                bb = min(self.big_blind, self.player_chips + self.player_current_bet)
+                self.bot_contrib = sb
+                self.player_contrib = bb
+
+            self.pot = self.player_contrib + self.bot_contrib
             return 'allin'
+        # 🔍 Sanity check de integridad
+        total_in_game = self.player_chips + self.bot_chips + self.pot
+        if total_in_game != 2000:
+            print(f"❗ ERROR: Total de fichas desajustado: {total_in_game}")
+        else:
+            print(f"✅ Total de fichas correcto: {total_in_game}")
+
+
 
         # ✅ NUEVA LÓGICA: si tras las ciegas uno queda sin fichas, showdown inmediato
         if self.player_chips == 0 or self.bot_chips == 0:
@@ -399,58 +423,43 @@ class PokerGame:
         print("Tus cartas:", self.player_hole, "+ Comunidad:", self.community_cards)
         print("Cartas del bot:", self.bot_hole, "+ Comunidad:", self.community_cards)
 
-        # 1) Evaluar mejor mano de 7 cartas para cada jugador
+        # 1) Evaluar mejor mano de 7 cartas
         player_best = self.evaluate_hand7(self.player_hole + self.community_cards)
         bot_best = self.evaluate_hand7(self.bot_hole + self.community_cards)
 
+        # 2) Mostrar jugadas
         print("Tu mejor jugada:", self.describe_hand(player_best))
         print("Mejor jugada del bot:", self.describe_hand(bot_best))
 
-        # 2) Contribuciones ya acumuladas a lo largo de la mano
-        contrib_player = self.player_contrib
-        contrib_bot = self.bot_contrib
-
-        # 3) Determinar main pot y side pot correctamente
-        main_contrib = min(contrib_player, contrib_bot)
+        # 3) Determinar pot real y distribuirlo sin inflar
+        total_pot = self.pot
+        main_contrib = min(self.player_contrib, self.bot_contrib)
         main_pot = main_contrib * 2
-        side_pot = (contrib_player + contrib_bot) - main_pot
+        side_pot = total_pot - main_pot
+        print(f"\n-- Reparto del pot: Main Pot={main_pot}, Side Pot={side_pot} (Total = {total_pot} fichas)")
 
-        print(f"\n-- Reparto del pot: Main Pot={main_pot}, Side Pot={side_pot} (Total repartido: {main_pot + side_pot} fichas)")
-
-
-        # 4) Comparar manos y repartir
+        # 4) Comparar y repartir
         cmp = self.compare_hands(player_best, bot_best)
         if cmp > 0:
             print(f"¡Ganas la mano y te llevas el MAIN POT de {main_pot} fichas!")
-            total_win = main_pot
-            if side_pot > 0:
-                if contrib_player > contrib_bot:
-                    print(f"El SIDE POT ({side_pot} fichas) lo ganas tú porque aportaste más.")
-                    total_win += side_pot
-                else:
-                    print(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
-                    self.bot_chips += side_pot
-            self.player_chips += total_win
-
+            self.player_chips += main_pot
+            print(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
+            self.bot_chips += side_pot
         elif cmp < 0:
-            # El bot gana main + side (o solo main si no hubo side)
-            total_win = main_pot + side_pot
-            print(f"El bot gana la mano y se lleva MAIN+SIDE POT: {total_win} fichas.")
-            self.bot_chips += total_win
+            print(f"El bot gana la mano y se lleva el MAIN POT de {main_pot} fichas.")
+            self.bot_chips += main_pot
+            print(f"El SIDE POT ({side_pot} fichas) retorna a ti.")
+            self.player_chips += side_pot
         else:
-            # Empate: dividir el main pot; el side pot va al que aportó más
-            half_main = main_pot // 2
-            print(f"Empate. Se reparte MAIN POT: cada uno recibe {half_main} fichas.")
-            self.player_chips += half_main
-            self.bot_chips += half_main
-            if side_pot > 0:
-                print(f"El SIDE POT ({side_pot} fichas) va al que aportó más.")
-                if contrib_bot > contrib_player:
-                    self.bot_chips += side_pot
-                else:
-                    self.player_chips += side_pot
+            mitad = main_pot // 2
+            print(f"Empate. Se reparte MAIN POT: cada uno recibe {mitad} fichas.")
+            self.player_chips += mitad
+            self.bot_chips += main_pot - mitad
+            print(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
+            self.bot_chips += side_pot
 
-        # 5) Limpiar pot y mostrar stacks finales
+
+        # 5) Limpieza
         self.pot = 0
         self.print_chip_counts()
 
