@@ -6,6 +6,12 @@ from practica import PokerGame, Action
 
 app = Flask(__name__, static_folder='.')
 
+# Ciegas dinámicas
+initial_sb = 10
+initial_bb = 20
+sb = initial_sb
+bb = initial_bb
+manos_desde_reset = 0
 # Carga del trainer entrenado (CFR)
 with open('cfr_entreno.pkl', 'rb') as f:
     trainer = pickle.load(f)
@@ -45,17 +51,30 @@ def format_chips():
 @app.route('/api/start_hand', methods=['POST'])
 def start_hand():
     global game, current_hand_logs, last_dealer
+    global sb, bb, manos_desde_reset
+
 
     # Crear una nueva partida y alternar el dealer manualmente
     # Heredar los stacks anteriores y alternar el dealer
     if game and game.player_chips > 0 and game.bot_chips > 0:
         player_stack = game.player_chips
         bot_stack = game.bot_chips
+        manos_desde_reset += 1
+        if manos_desde_reset % 4 == 0:
+            sb *= 2
+            bb *= 2
+            current_hand_logs = [f"🔺 Ciegas aumentadas: SB={sb}, BB={bb}"]
+
     else:
+        # Reset completo
         player_stack = 1000
         bot_stack = 1000
+        sb = initial_sb
+        bb = initial_bb
+        manos_desde_reset = 0
 
-    game = PokerGame(player_chips=player_stack, bot_chips=bot_stack)
+    game = PokerGame(player_chips=player_stack, bot_chips=bot_stack, small_blind=sb, big_blind=bb)
+
 
     game.dealer = "bot" if last_dealer == "player" else "player"
     last_dealer = game.dealer  # Actualizar el global
