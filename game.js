@@ -52,7 +52,6 @@ function updateStatus() {
   playerChipsSpan.textContent = gameState.player_chips;
   botChipsSpan.textContent    = gameState.bot_chips;
   dealerSpan.textContent      = gameState.dealer;
-  
 }
 
 // ----------------------------------------------------------
@@ -110,40 +109,33 @@ function enableActions(enable) {
 // Enviar acción del jugador al backend
 // ----------------------------------------------------------
 async function sendPlayerAction(action, raise_amount = null) {
-  // 1) Mostrar la acción del jugador
   playerMessageDiv.textContent = `Jugador: ${action}${raise_amount ? ' ' + raise_amount : ''}`;
 
-  // 2) Llamada al servidor
   const res = await fetch('/api/player_action', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ action, raise_amount })
   });
-  const data = await res.json();
 
+  const data = await res.json();
   if (data.error) {
     alert(data.error);
     return;
   }
 
-  // 3) Actualizamos estado en cliente
   gameState = data;
   renderCards();
   updateStatus();
 
-  // 4) Actualizamos mensaje del bot
   if (data.log) {
     updateBotMessage(data.log);
   }
 
-  // 5) Si la mano terminó (hand_ended = true), mostramos showdown y ganador/fold
   if (data.hand_ended) {
-    // 5.1) Intentar buscar “Showdown!” en los logs
     const showdownLine = data.log.find(m =>
       m.toLowerCase().startsWith("showdown")
     ) || "";
 
-    // 5.2) Línea con ganador: “¡Ganas…” o “El bot gana…” o “Empate…”
     const winnerLine = data.log.find(m => {
       const low = m.toLowerCase();
       return low.startsWith("¡ganas") ||
@@ -151,92 +143,117 @@ async function sendPlayerAction(action, raise_amount = null) {
              low.includes("empate");
     }) || "";
 
-    // 5.3) “Tu mejor jugada: …”
     const tuMejorLine  = data.log.find(m =>
       m.toLowerCase().startsWith("tu mejor jugada")
     ) || "";
 
-    // 5.4) “Mejor jugada del bot: …”
     const botMejorLine = data.log.find(m =>
       m.toLowerCase().startsWith("mejor jugada del bot")
     ) || "";
 
-    // 5.5) Mostrar “Showdown!” en el centro (si existe)
     showdownCenterDiv.textContent = showdownLine;
 
-    // 5.6) Mostrar detalles: ganador, tu mano y mano del bot
     const detalles = [winnerLine, tuMejorLine, botMejorLine]
       .filter(line => line)
       .join("\n");
     showdownDetailsDiv.textContent = detalles;
 
-    // 5.7) Deshabilitar botones de acción y habilitar “Nueva Partida” / “Estadísticas”
     enableActions(false);
     playerMessageDiv.textContent = 'Mano terminada. Elige “Nueva Partida” o “Estadísticas”.';
-
-    // Habilitar y mostrar los botones estáticos
-    btnNuevaMano.disabled    = false;
+    btnNuevaMano.disabled = false;
     btnEstadisticas.disabled = false;
     sideButtonsDiv.style.display = 'flex';
-
     return;
   }
 
-  // 6) Si la mano continúa y ahora es el turno del jugador:
-  if (data.to_act === "player") {
-    setTimeout(() => {
-      enableActions(true);
-    }, 2000);
+  // 6) Si ahora toca al jugador:
+if (data.to_act === "player") {
+  const hayAccionBot = data.log.some(line => line.toLowerCase().startsWith("bot"));
+  if (hayAccionBot) {
+    const ultimaAccion = data.log.slice().reverse().find(line => line.toLowerCase().startsWith("bot"));
+    botMessageDiv.textContent = ultimaAccion;
   }
-  // 7) Si ahora toca al bot:
-  else {
-    enableActions(false);
+  setTimeout(() => {
+    enableActions(true);
+  }, 300);
+}
+
+// 7) Si ahora toca al bot:
+else {
+  const hayAccionBot = data.log.some(line => line.toLowerCase().startsWith("bot"));
+  if (hayAccionBot) {
+    const ultimaAccion = data.log.slice().reverse().find(line => line.toLowerCase().startsWith("bot"));
+    botMessageDiv.textContent = ultimaAccion;
+  } else {
     botMessageDiv.textContent = 'Esperando acción del bot...';
   }
+  enableActions(false);
+}
+
+
 }
 
 // ----------------------------------------------------------
 // Iniciar una nueva mano
 // ----------------------------------------------------------
 async function iniciarPartida() {
-  // Ocultar y deshabilitar los botones estáticos al empezar:
   btnNuevaMano.disabled    = true;
   btnEstadisticas.disabled = true;
   sideButtonsDiv.style.display = 'none';
 
-  // Limpiar mensajes y contenedores
   showdownCenterDiv.textContent  = '';
   showdownDetailsDiv.textContent = '';
   botMessageDiv.textContent      = '';
   playerMessageDiv.textContent   = '';
   actionsContainer.innerHTML     = '';
 
-  // 1) Llamada al endpoint de Flask para iniciar mano
   const res  = await fetch('/api/start_hand', { method: 'POST' });
   const data = await res.json();
 
   if (data.error) {
     alert(data.error);
-    // Si hay error, volvemos a habilitar el botón “Nueva Partida”
     btnNuevaMano.disabled = false;
     return;
   }
 
-  // 2) Actualizar estado del juego
   gameState = data;
   renderCards();
   updateStatus();
 
-  // 3) Mostrar último mensaje del bot (si existe)
-  if (data.log) {
-    updateBotMessage(data.log);
-  }
+  // ✅ NUEVO BLOQUE FINAL ROBUSTO
+if (gameState.hand_ended) {
+  enableActions(false);
+  updateBotMessage(gameState.log);
+  playerMessageDiv.textContent = 'Mano terminada. Elige “Nueva Partida” o “Estadísticas”.';
+  btnNuevaMano.disabled = false;
+  btnEstadisticas.disabled = false;
+  sideButtonsDiv.style.display = 'flex';
+  return;
+}
 
-  // 4) Si le toca al jugador, habilitar botones de acción; sino, esperar al bot
-  if (gameState.to_act === "player") {
-    enableActions(true);
+// ✅ Mostrar acción del bot si ya actuó
+if (gameState.log) {
+  updateBotMessage(gameState.log);
+}
+
+// ✅ Decidir turno realista
+if (gameState.to_act === "player") {
+  enableActions(true);
+  playerMessageDiv.textContent = "Tu turno: elige acción.";
+} else {
+  // 🧠 Si ya hay acción del bot en el log, no mostramos "esperando"
+  const hayAccionBot = gameState.log.some(line => line.toLowerCase().startsWith("bot"));
+  if (hayAccionBot) {
+    botMessageDiv.textContent = gameState.log.find(line => line.toLowerCase().startsWith("bot"));
+    enableActions(true);  // Porque es el turno del jugador después de la acción del bot
   } else {
     enableActions(false);
     botMessageDiv.textContent = 'Esperando acción del bot...';
   }
+}
+
+
+  // 💡 Consola útil para debug
+  console.log("to_act:", gameState.to_act);
+  console.log("log:", gameState.log);
 }

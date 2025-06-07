@@ -12,6 +12,8 @@ with open('cfr_entreno.pkl', 'rb') as f:
 
 game = None
 current_hand_logs = []  # Acumula todas las líneas de la mano en curso
+last_dealer = "bot"  # el primero en repartir será el jugador
+
 
 def action_str_to_enum(action_str):
     mapping = {
@@ -42,8 +44,13 @@ def format_chips():
 
 @app.route('/api/start_hand', methods=['POST'])
 def start_hand():
-    global game, current_hand_logs
+    global game, current_hand_logs, last_dealer
+
+    # Crear una nueva partida y alternar el dealer manualmente
     game = PokerGame()
+    game.dealer = "bot" if last_dealer == "player" else "player"
+    last_dealer = game.dealer  # Actualizar el global
+
     started = game.start_hand()
     if not started:
         return jsonify({'error': 'No hay fichas para las blinds.'}), 400
@@ -70,6 +77,24 @@ def start_hand():
 
     current_hand_logs = logs.copy()
 
+    if game.get_first_actor() == "bot":
+        action, raise_amount = game.bot_decide_action(trainer)
+        ended = game.apply_action("bot", action, raise_amount=raise_amount)
+
+        current_hand_logs.append(f"Bot decide {action.name} con raise_amount={raise_amount}")
+
+        if ended:
+            current_hand_logs.append("Bot se retira. Tú ganas la mano.")
+            return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
+
+        # Si hubo ALL-IN al inicio
+        player_allin = game.player_chips == 0
+        bot_allin = game.bot_chips == 0
+        bets_equal = game.player_current_bet == game.bot_current_bet
+        if (player_allin and bot_allin) or ((player_allin or bot_allin) and bets_equal):
+            current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
+            return _resolve_showdown(current_hand_logs.copy())
+
     return jsonify({
         'player_hole': game.player_hole,
         'bot_hole': ["card_back", "card_back"],
@@ -85,6 +110,7 @@ def start_hand():
         'hand_ended': False
     })
 
+
 @app.route('/api/player_action', methods=['POST'])
 def player_action():
     global game, current_hand_logs
@@ -94,19 +120,14 @@ def player_action():
     data = request.json
     action_str = data.get('action')
     raise_amount = data.get('raise_amount')
-
     action = action_str_to_enum(action_str)
     if action is None:
         return jsonify({'error': 'Acción inválida'}), 400
 
-    # 1) Calcular cuánto debe pagar el jugador ANTES de aplicar la acción
     to_call = game.current_bet - game.player_current_bet
-
-    # 2) Aplico la acción del jugador
     player_logs = []
     ended = game.apply_action("player", action, raise_amount=raise_amount)
 
-    # 3) Registro lo que hizo el jugador usando el to_call previo
     if action == Action.CALL:
         if to_call == 0:
             player_logs.append("Player hace CHECK.")
@@ -114,188 +135,119 @@ def player_action():
             player_logs.append(f"Player hace CALL de {to_call} fichas.")
     elif action == Action.FOLD:
         player_logs.append("Player se retira (FOLD).")
-    elif action == Action.RAISE_MEDIUM:
+    elif action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]:
         total_raise = (to_call if to_call > 0 else 0) + raise_amount
         player_logs.append(f"Player hace RAISE de {total_raise} fichas (incluyendo call).")
 
     current_hand_logs.extend(player_logs)
 
-    # 4) Si el jugador se retiró, terminar mano de inmediato
     if ended:
         current_hand_logs.append("Jugador se retiró. Bot gana la mano.")
         return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
 
-    # 5) Si el jugador acaba de CALL tras un RAISE del bot, la ronda termina YA y NO debe actuar el bot
-    #    Pero si eso ocurre en River (street_index == 3), en lugar de next_street -> showdown.
+    def actuar_bot_si_toca():
+        bot_action, bot_raise = game.bot_decide_action(trainer)
+        to_call_bot = game.current_bet - game.bot_current_bet
+
+        # ✅ Evita FOLD si no hay apuestas
+        if bot_action == Action.FOLD and to_call_bot == 0:
+            bot_action = Action.CALL
+            bot_raise = None
+
+        ended_bot = game.apply_action("bot", bot_action, raise_amount=bot_raise)
+
+        if bot_action == Action.CALL and to_call_bot == 0:
+            current_hand_logs.append("Bot hace CHECK.")
+        elif bot_action == Action.CALL:
+            current_hand_logs.append(f"Bot hace CALL de {to_call_bot} fichas.")
+        elif bot_action == Action.FOLD:
+            current_hand_logs.append("Bot se retira (FOLD).")
+        elif bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]:
+            current_hand_logs.append(f"Bot hace RAISE de {bot_raise} fichas (incluyendo call).")
+
+        if ended_bot:
+            current_hand_logs.append("Bot se retira. Tú ganas la mano.")
+            return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
+
+        # Showdown si ambos están all-in
+        if (game.player_chips == 0 or game.bot_chips == 0) and \
+           (game.player_current_bet == game.bot_current_bet):
+            current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
+            return _resolve_showdown(current_hand_logs.copy())
+
+        return None
+
+    def avanzar_street_y_posible_acción_bot():
+        game.next_street()
+        logs = ["Ronda de apuestas completada."]
+        if game.street_index == 1:
+            logs.append(f"Flop: {game.community_cards[:3]}")
+        elif game.street_index == 2:
+            logs.append(f"Turn: {game.community_cards[:4]}")
+        elif game.street_index == 3:
+            logs.append(f"River: {game.community_cards[:5]}")
+        logs.append(format_chips())
+        logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
+        current_hand_logs.extend(logs)
+
+        if game.get_first_actor() == "bot":
+            respuesta = actuar_bot_si_toca()
+            if respuesta:
+                return respuesta
+
+        return jsonify({
+            'player_hole': game.player_hole,
+            'bot_hole': ["card_back", "card_back"],
+            'community_cards': (
+                (game.community_cards[:3] if game.street_index >= 1 else []) +
+                (game.community_cards[3:4] if game.street_index >= 2 else []) +
+                (game.community_cards[4:5] if game.street_index >= 3 else [])
+            ),
+            'pot': game.pot,
+            'player_chips': game.player_chips,
+            'bot_chips': game.bot_chips,
+            'dealer': game.dealer,
+            'street_index': game.street_index,
+            'history': game.history,
+            'to_act': "player",
+            'log': current_hand_logs.copy(),
+            'hand_ended': False
+        })
+
+    # 1) CALL tras RAISE del bot
     if action == Action.CALL and to_call > 0 and game.history.endswith('c'):
         if game.street_index < 3:
-            # Avanzar a la siguiente ronda normalmente
-            game.next_street()
-            street_logs = ["Ronda de apuestas completada."]
-            if game.street_index == 1:
-                street_logs.append(f"Flop: {game.community_cards[:3]}")
-            elif game.street_index == 2:
-                street_logs.append(f"Turn: {game.community_cards[:4]}")
-            elif game.street_index == 3:
-                street_logs.append(f"River: {game.community_cards[:5]}")
-            street_logs.append(format_chips())
-            street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
-            current_hand_logs.extend(street_logs)
-
-            return jsonify({
-                'player_hole': game.player_hole,
-                'bot_hole': ["card_back", "card_back"],
-                'community_cards': (
-                    (game.community_cards[:3] if game.street_index >= 1 else []) +
-                    (game.community_cards[3:4] if game.street_index >= 2 else []) +
-                    (game.community_cards[4:5] if game.street_index >= 3 else [])
-                ),
-                'pot': game.pot,
-                'player_chips': game.player_chips,
-                'bot_chips': game.bot_chips,
-                'dealer': game.dealer,
-                'street_index': game.street_index,
-                'history': game.history,
-                'to_act': "player",
-                'log': current_hand_logs.copy(),
-                'hand_ended': False
-            })
-
+            return avanzar_street_y_posible_acción_bot()
         else:
-            # Si estábamos en River (street_index == 3), avanzamos a showdown directamente
             current_hand_logs.append("Ronda de apuestas completada.")
             return _resolve_showdown(current_hand_logs.copy())
 
-    # 6) Detección de “check–check” para avanzar ronda sin invocar al bot
-    #    (mismo ajuste: si avanza desde River a showdown, invocar showdown)
-    if game.current_bet == 0 and len(game.history) >= 2 and all(ch == 'c' for ch in game.history[-2:]):
+    # 2) Doble CHECK
+    if game.current_bet == 0 and game.history[-2:] == 'cc':
         if game.street_index < 3:
-            game.next_street()
-            street_logs = ["Ronda de apuestas completada."]
-            if game.street_index == 1:
-                street_logs.append(f"Flop: {game.community_cards[:3]}")
-            elif game.street_index == 2:
-                street_logs.append(f"Turn: {game.community_cards[:4]}")
-            elif game.street_index == 3:
-                street_logs.append(f"River: {game.community_cards[:5]}")
-            street_logs.append(format_chips())
-            street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
-            current_hand_logs.extend(street_logs)
-
-            return jsonify({
-                'player_hole': game.player_hole,
-                'bot_hole': ["card_back", "card_back"],
-                'community_cards': (
-                    (game.community_cards[:3] if game.street_index >= 1 else []) +
-                    (game.community_cards[3:4] if game.street_index >= 2 else []) +
-                    (game.community_cards[4:5] if game.street_index >= 3 else [])
-                ),
-                'pot': game.pot,
-                'player_chips': game.player_chips,
-                'bot_chips': game.bot_chips,
-                'dealer': game.dealer,
-                'street_index': game.street_index,
-                'history': game.history,
-                'to_act': "player",
-                'log': current_hand_logs.copy(),
-                'hand_ended': False
-            })
+            return avanzar_street_y_posible_acción_bot()
         else:
-            # Estábamos en River, así que ahora toca showdown
             current_hand_logs.append("Ronda de apuestas completada.")
             return _resolve_showdown(current_hand_logs.copy())
 
-    # 7) Acción del bot (solo si no entramos en “CALL tras RAISE” ni “check–check”)
-    bot_logs = []
-    bot_action, bot_raise = game.bot_decide_action(trainer)
+    # 3) Acción normal del bot
+    respuesta = actuar_bot_si_toca()
+    if respuesta:
+        return respuesta
 
-    bets_equal = (game.player_current_bet == game.bot_current_bet)
-    if bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and 'r' in game.history and bets_equal:
-        bot_action = Action.CALL
-        bot_raise = None
-
-    to_call_bot = game.current_bet - game.bot_current_bet
-    if bot_action == Action.FOLD and to_call_bot == 0:
-        bot_action = Action.CALL
-        bot_raise = None
-
-    ended_bot = game.apply_action("bot", bot_action, raise_amount=bot_raise)
-
-    if game.bot_chips == 0 and not ended_bot:
-        bot_logs.append("Bot va ALL-IN!")
-
-    if bot_action == Action.CALL and to_call_bot == 0:
-        bot_logs.append("Bot hace CHECK.")
-    elif bot_action == Action.CALL:
-        pay = to_call_bot if to_call_bot > 0 else 0
-        bot_logs.append(f"Bot hace CALL de {pay} fichas.")
-    elif bot_action == Action.FOLD:
-        bot_logs.append("Bot se retira (FOLD).")
-    elif bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]:
-        total_raise_bot = bot_raise if bot_raise else 0
-        bot_logs.append(f"Bot hace RAISE de {total_raise_bot} fichas (incluyendo call).")
-
-    current_hand_logs.extend(bot_logs)
-
-    if ended_bot:
-        current_hand_logs.append("Bot se retira. Tú ganas la mano.")
-        return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
-
-    # 8) Lógica de ALL-IN / avance de ronda tras acción del bot
-    #    (si pasamos de River a showdown, invocar _resolve_showdown)
-    player_allin = (game.player_chips == 0)
-    bot_allin = (game.bot_chips == 0)
-    bets_equal = (game.player_current_bet == game.bot_current_bet)
-
-    if (player_allin and bot_allin) or ((player_allin or bot_allin) and bets_equal):
-        current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
-        return _resolve_showdown(current_hand_logs.copy())
-
-    # 9) Avanzar de ronda si apuestas igualadas y ambos han actuado (>= 2 acciones)
-    bets_equal = (game.player_current_bet == game.bot_current_bet)
-    if bets_equal and len(game.history) >= 2:
+    # 4) Avanzar calle si apuestas igualadas
+    if game.player_current_bet == game.bot_current_bet and len(game.history) >= 2:
         if game.street_index < 3:
-            game.next_street()
-            street_logs = ["Ronda de apuestas completada."]
-            if game.street_index == 1:
-                street_logs.append(f"Flop: {game.community_cards[:3]}")
-            elif game.street_index == 2:
-                street_logs.append(f"Turn: {game.community_cards[:4]}")
-            elif game.street_index == 3:
-                street_logs.append(f"River: {game.community_cards[:5]}")
-            street_logs.append(format_chips())
-            street_logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
-            current_hand_logs.extend(street_logs)
-
-            # Devolvemos el estado para la nueva ronda
-            return jsonify({
-                'player_hole': game.player_hole,
-                'bot_hole': ["card_back", "card_back"],
-                'community_cards': (
-                    (game.community_cards[:3] if game.street_index >= 1 else []) +
-                    (game.community_cards[3:4] if game.street_index >= 2 else []) +
-                    (game.community_cards[4:5] if game.street_index >= 3 else [])
-                ),
-                'pot': game.pot,
-                'player_chips': game.player_chips,
-                'bot_chips': game.bot_chips,
-                'dealer': game.dealer,
-                'street_index': game.street_index,
-                'history': game.history,
-                'to_act': game.get_first_actor(),
-                'log': current_hand_logs.copy(),
-                'hand_ended': False
-            })
+            return avanzar_street_y_posible_acción_bot()
         else:
-            # Si estábamos en River (street_index == 3), invocar showdown
             current_hand_logs.append("Ronda de apuestas completada.")
             return _resolve_showdown(current_hand_logs.copy())
 
-    # 10) Showdown normal en river si no hubo all-in y no se avanzó antes
+    # 5) Última calle (por seguridad)
     if game.street_index == 4:
         return _resolve_showdown(current_hand_logs.copy())
 
-    # 11) La mano continúa, devolvemos estado normal al frontend
+    # 6) Mano continúa
     return jsonify({
         'player_hole': game.player_hole,
         'bot_hole': ["card_back", "card_back"],
@@ -310,10 +262,11 @@ def player_action():
         'dealer': game.dealer,
         'street_index': game.street_index,
         'history': game.history,
-        'to_act': game.get_first_actor(),
+        'to_act': "player",
         'log': current_hand_logs.copy(),
         'hand_ended': False
     })
+
 
 @app.route('/api/last_stats', methods=['GET'])
 def get_last_stats_api():
@@ -361,7 +314,6 @@ def _end_hand_response(all_logs, show_bot_cards=True):
     }
 
     # Reiniciar variables para la próxima mano
-    game = None
     current_hand_logs = []
     return jsonify(resp)
 
