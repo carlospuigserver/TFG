@@ -1,30 +1,30 @@
 Dealer: JUGADOR -> SB=10 (jugador), BB=20 (bot)
 === Nueva mano ===
 Dealer: PLAYER
-Tus cartas: ['TC', 'QS']
-Fichas -> Tú: 10 | Bot: 1960 | Pot: 30
+Tus cartas: ['2D', '5D']
+Fichas -> Tú: 1690 | Bot: 280 | Pot: 30
 --- Nueva ronda de apuestas (inicia: BOT) ---
-Bot decide CALL con raise_amount=None
-Player hace CALL de 10 fichas.
-Ronda de apuestas completada.
-Flop: ['2H', 'JD', '2S']
-Fichas -> Tú: 0 | Bot: 1960 | Pot: 40
---- Nueva ronda de apuestas (inicia: BOT) ---
-Bot hace RAISE de 40 fichas (incluyendo call).
-Player hace RAISE de 60 fichas (incluyendo call).
-Bot hace CHECK.
+Bot decide RAISE_MEDIUM con raise_amount=30
 Player hace CALL de 40 fichas.
 Ronda de apuestas completada.
-Turn: ['2H', 'JD', '2S', '4H']
-Fichas -> Tú: 0 | Bot: 1920 | Pot: 80
+Flop: ['3C', 'JH', '4D']
+Fichas -> Tú: 1650 | Bot: 250 | Pot: 100
 --- Nueva ronda de apuestas (inicia: BOT) ---
-Bot hace CHECK.
+Bot hace RAISE de 100 fichas (incluyendo call).
+Player hace RAISE de 200 fichas (incluyendo call).
+Bot hace RAISE de 50 fichas (incluyendo call).
+Player hace CALL de 50 fichas.
+Ronda de apuestas completada.
+Turn: ['3C', 'JH', '4D', '8D']
+Fichas -> Tú: 1400 | Bot: 0 | Pot: 600
+--- Nueva ronda de apuestas (inicia: BOT) ---
+Bot hace RAISE de 600 fichas (incluyendo call).
 Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.
 Showdown!
-Tus cartas: ['TC', 'QS'] + Comunidad: ['2H', 'JD', '2S', '4H', 'AH']
-Cartas del bot: ['TS', '2D'] + Comunidad: ['2H', 'JD', '2S', '4H', 'AH']
-Tu mejor jugada: Pareja de 2 con kickers 14, 12, 11
-Mejor jugada del bot: Trío de 2 con kickers 14, 11
--- Pot total: 80 fichas (Main Pot=40, Side Pot=40)
-El bot gana la mano y se lleva MAIN+SIDE POT: 80 fichas.
-Fichas -> Tú: 0 | Bot: 2000 | Pot: 80
+Tus cartas: ['2D', '5D'] + Comunidad: ['3C', 'JH', '4D', '8D', 'AD']
+Cartas del bot: ['5C', 'JD'] + Comunidad: ['3C', 'JH', '4D', '8D', 'AD']
+Tu mejor jugada: Color con 14, 8, 5, 4, 2
+Mejor jugada del bot: Pareja de 11 con kickers 14, 8, 5
+-- Pot total: 600 fichas (Main Pot=600, Side Pot=0)
+¡Ganas la mano y te llevas el MAIN POT de 600 fichas!
+Fichas -> Tú: 2000 | Bot: 0 | Pot: 600

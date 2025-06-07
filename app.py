@@ -108,6 +108,13 @@ def start_hand():
         if ended:
             current_hand_logs.append("Bot se retira. Tú ganas la mano.")
             return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
+        
+        player_allin = game.player_chips == 0
+        bot_allin = game.bot_chips == 0
+        bets_equal = game.player_current_bet == game.bot_current_bet
+        if (player_allin or bot_allin) and bets_equal:
+            current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
+            return _resolve_showdown(current_hand_logs.copy())
 
         # Si hubo ALL-IN al inicio
         player_allin = game.player_chips == 0
