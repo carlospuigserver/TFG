@@ -174,11 +174,17 @@ def player_action():
         current_hand_logs.append("Jugador se retiró. Bot gana la mano.")
         return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
 
+    # ✅ NUEVO: check inmediato por si quedó all-in + apuestas igualadas
+    if (game.player_chips == 0 or game.bot_chips == 0) and \
+       (game.player_current_bet == game.bot_current_bet):
+        current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
+        return _resolve_showdown(current_hand_logs.copy())
+
+    # Funciones internas: bot y avanzar calle
     def actuar_bot_si_toca():
         bot_action, bot_raise = game.bot_decide_action(trainer)
         to_call_bot = game.current_bet - game.bot_current_bet
 
-        # ✅ Evita FOLD si no hay apuestas
         if bot_action == Action.FOLD and to_call_bot == 0:
             bot_action = Action.CALL
             bot_raise = None
@@ -198,7 +204,7 @@ def player_action():
             current_hand_logs.append("Bot se retira. Tú ganas la mano.")
             return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
 
-        # Showdown si ambos están all-in
+        # ✅ Check inmediato por si tras acción del bot se da el all-in + apuestas igualadas
         if (game.player_chips == 0 or game.bot_chips == 0) and \
            (game.player_current_bet == game.bot_current_bet):
             current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
@@ -218,6 +224,12 @@ def player_action():
         logs.append(format_chips())
         logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
         current_hand_logs.extend(logs)
+
+        # 🚨 ALL-IN tras avanzar calle
+        if (game.player_chips == 0 or game.bot_chips == 0) and \
+           (game.player_current_bet == game.bot_current_bet):
+            current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
+            return _resolve_showdown(current_hand_logs.copy())
 
         if game.get_first_actor() == "bot":
             respuesta = actuar_bot_si_toca()
@@ -381,7 +393,8 @@ def _resolve_showdown(logs_before):
         f"Cartas del bot: {game.bot_hole} + Comunidad: {game.community_cards}",
         f"Tu mejor jugada: {player_desc}",
         f"Mejor jugada del bot: {bot_desc}",
-        f"-- Pot total: {game.pot} fichas (Main Pot={main_pot}, Side Pot={side_pot})"
+        f"-- Reparto del pot: Main Pot={main_pot}, Side Pot={side_pot} (Total repartido: {main_pot + side_pot} fichas)"
+
     ]
 
     if cmp > 0:

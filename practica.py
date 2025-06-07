@@ -70,11 +70,12 @@ class PokerGame:
     # --- Publicar blinds ---
     def post_blinds(self):
         if self.dealer == "player":
-            sb = self.small_blind
-            bb = self.big_blind
-            if self.player_chips < sb or self.bot_chips < bb:
+            sb = min(self.small_blind, self.player_chips)
+            bb = min(self.big_blind, self.bot_chips)
+            if sb == 0 or bb == 0:
                 print("Uno de los jugadores no puede cubrir las ciegas. All-in forzado.")
                 return 'allin'
+
             # El jugador hace SB, el bot hace BB
             self.player_chips -= sb
             self.bot_chips -= bb
@@ -85,11 +86,12 @@ class PokerGame:
             self.bot_contrib = bb
             print(f"Dealer: Jugador -> SB={sb}, Bot -> BB={bb}")
         else:
-            sb = self.small_blind
-            bb = self.big_blind
-            if self.bot_chips < sb or self.player_chips < bb:
+            sb = min(self.small_blind, self.bot_chips)
+            bb = min(self.big_blind, self.player_chips)
+            if sb == 0 or bb == 0:
                 print("Uno de los jugadores no puede cubrir las ciegas. All-in forzado.")
                 return 'allin'
+
             # El bot hace SB, el jugador hace BB
             self.bot_chips -= sb
             self.player_chips -= bb
@@ -107,13 +109,20 @@ class PokerGame:
     def force_allin_preflop(self):
         print("\n⚠️  All-in forzado en preflop por falta de fichas.")
 
+        # ✅ Resetear apuestas previas antes de forzar all-in
+        self.pot = 0
+        self.current_bet = 0
+        self.player_current_bet = 0
+        self.bot_current_bet = 0
+        self.player_contrib = 0
+        self.bot_contrib = 0
+
         # Ambos meten todas sus fichas disponibles
         contrib_player = self.player_chips
         contrib_bot = self.bot_chips
 
         self.player_contrib = contrib_player
         self.bot_contrib = contrib_bot
-
         self.pot = contrib_player + contrib_bot
 
         self.player_current_bet = contrib_player
@@ -132,9 +141,10 @@ class PokerGame:
         self.showdown()
 
 
+
     # --- Inicia mano nueva ---
     def start_hand(self):
-        # Reseteamos estado de mano
+        # Reset del estado de la mano
         self.player_contrib = 0
         self.bot_contrib = 0
         self.street_index = 0
@@ -151,24 +161,22 @@ class PokerGame:
         self.shuffle_deck()
         self.deal_cards()
 
-        # 🔥 CHECK: ¿algún jugador no puede pagar su ciega?
-        if self.dealer == "player":
-            if self.player_chips < self.small_blind or self.bot_chips < self.big_blind:
-                self.force_allin_preflop()
-                return "allin"
-        else:
-            if self.bot_chips < self.small_blind or self.player_chips < self.big_blind:
-                self.force_allin_preflop()
-                return "allin"
+        # 👇⚠️ Check ciegas antes de arrancar
+        result = self.post_blinds()
+        if result == 'allin':
+            return 'allin'
 
-        if not self.post_blinds():
-            return False
+        # ✅ NUEVA LÓGICA: si tras las ciegas uno queda sin fichas, showdown inmediato
+        if self.player_chips == 0 or self.bot_chips == 0:
+            print("Uno de los jugadores quedó sin fichas tras las ciegas. Se fuerza showdown.")
+            self.reveal_remaining_community_cards()
+            self.showdown()
+            return 'allin'
 
         print("\n=== Nueva mano ===")
         print(f"Dealer: {self.dealer.upper()}")
         print("Tus cartas:", self.player_hole)
         return True
-
 
     # --- Aplicar acción de jugador o bot ---
     def apply_action(self, actor, action: Action, raise_amount=None):
@@ -407,22 +415,23 @@ class PokerGame:
         main_pot = main_contrib * 2
         side_pot = (contrib_player + contrib_bot) - main_pot
 
-        print(f"\n-- Pot total: {self.pot} fichas (Main Pot={main_pot}, Side Pot={side_pot})")
+        print(f"\n-- Reparto del pot: Main Pot={main_pot}, Side Pot={side_pot} (Total repartido: {main_pot + side_pot} fichas)")
+
 
         # 4) Comparar manos y repartir
         cmp = self.compare_hands(player_best, bot_best)
         if cmp > 0:
-            # El jugador gana el main pot; el side pot (si existe) va al que aportó más
             print(f"¡Ganas la mano y te llevas el MAIN POT de {main_pot} fichas!")
-            self.player_chips += main_pot
+            total_win = main_pot
             if side_pot > 0:
-                # Quien aportó más al side pot lo gana
                 if contrib_player > contrib_bot:
                     print(f"El SIDE POT ({side_pot} fichas) lo ganas tú porque aportaste más.")
-                    self.player_chips += side_pot
+                    total_win += side_pot
                 else:
                     print(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
                     self.bot_chips += side_pot
+            self.player_chips += total_win
+
         elif cmp < 0:
             # El bot gana main + side (o solo main si no hubo side)
             total_win = main_pot + side_pot
