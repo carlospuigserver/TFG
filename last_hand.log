@@ -1,29 +1,27 @@
-Dealer: JUGADOR -> SB=10 (jugador), BB=20 (bot)
+Dealer: BOT -> SB=10 (bot), BB=20 (jugador)
 === Nueva mano ===
-Dealer: PLAYER
-Tus cartas: ['3C', 'KS']
-Fichas -> Tú: 490 | Bot: 1480 | Pot: 30
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace CALL de 10 fichas.
-Bot hace CHECK.
-Ronda de apuestas completada.
-Flop: ['JH', '7S', '6H']
-Fichas -> Tú: 480 | Bot: 1480 | Pot: 40
+Dealer: BOT
+Tus cartas: ['AS', '2C']
+Fichas -> Tú: 540 | Bot: 1430 | Pot: 30
 --- Nueva ronda de apuestas (inicia: BOT) ---
-Bot hace RAISE de 40 fichas (incluyendo call).
-Player hace CALL de 40 fichas.
-Bot hace CHECK.
-Ronda de apuestas completada.
-Turn: ['JH', '7S', '6H', '8C']
-Fichas -> Tú: 440 | Bot: 1440 | Pot: 120
---- Nueva ronda de apuestas (inicia: BOT) ---
-Bot hace CHECK.
+Bot hace CALL de 10 fichas.
 Player hace CHECK.
 Ronda de apuestas completada.
-River: ['JH', '7S', '6H', '8C', '3S']
-Fichas -> Tú: 440 | Bot: 1440 | Pot: 120
---- Nueva ronda de apuestas (inicia: BOT) ---
-Bot hace CHECK.
+Flop: ['JS', '3C', 'QC']
+Fichas -> Tú: 540 | Bot: 1420 | Pot: 40
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
 Player hace RAISE de 30 fichas (incluyendo call).
+Bot hace CALL de 30 fichas.
+Ronda de apuestas completada.
+Turn: ['JS', '3C', 'QC', '9S']
+Fichas -> Tú: 510 | Bot: 1390 | Pot: 100
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
+Player hace RAISE de 50 fichas (incluyendo call).
+Bot hace CALL de 50 fichas.
+Ronda de apuestas completada.
+River: ['JS', '3C', 'QC', '9S', '7S']
+Fichas -> Tú: 460 | Bot: 1340 | Pot: 200
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
+Player hace RAISE de 200 fichas (incluyendo call).
 Bot se retira (FOLD).
 Bot se retira. Tú ganas la mano.
