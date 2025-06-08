@@ -154,6 +154,8 @@ def board_connectedness(community):
 def effective_hand_strength(hole, community, num_mc=50):
     return real_equity_estimate(hole, community, num_sim=num_mc)
 
+
+
 def hand_to_features_enhanced(hole, community, pot, history, to_act):
     f = []
 
