@@ -155,9 +155,8 @@ def player_action():
         return jsonify({'error': 'No hay juego activo.'}), 400
 
     data = request.get_json()
-    actor = data.get('actor', 'player')  # por defecto player
+    actor = data.get('actor', 'player')
 
-    # ✅ FUNCION PARA QUE EL BOT ACTÚE CUANDO LE TOQUE
     def actuar_bot_si_toca():
         bot_action, bot_raise = game.bot_decide_action(trainer)
         to_call_bot = game.current_bet - game.bot_current_bet
@@ -188,7 +187,6 @@ def player_action():
 
         return None
 
-    # 💥 1. Si es el turno del bot
     if actor == 'bot':
         respuesta = actuar_bot_si_toca()
         if respuesta:
@@ -215,7 +213,7 @@ def player_action():
             'bb': game.big_blind
         })
 
-    # 🧠 2. Si es el jugador quien actúa
+    # Si actúa el jugador
     action_str = data.get('action')
     raise_amount = data.get('raise_amount')
     action = action_str_to_enum(action_str)
@@ -248,7 +246,6 @@ def player_action():
         current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
         return _resolve_showdown(current_hand_logs.copy())
 
-    # 📦 Sub-función para avanzar de calle y actuar el bot si toca
     def avanzar_street_y_posible_acción_bot():
         game.next_street()
         logs = ["Ronda de apuestas completada."]
@@ -293,20 +290,41 @@ def player_action():
             'bb': game.big_blind
         })
 
-    # Reglas para avanzar la ronda
-    if action == Action.CALL and to_call > 0 and game.history.endswith('c'):
+    # ✅ DOBLE CHECK: avanzar si historia termina en 'cc' y no hay apuestas
+    if game.current_bet == 0 and game.history.endswith('cc'):
         if game.street_index < 3:
             return avanzar_street_y_posible_acción_bot()
         else:
             current_hand_logs.append("Ronda de apuestas completada.")
             return _resolve_showdown(current_hand_logs.copy())
 
-    if game.current_bet == 0 and game.history[-2:] == 'cc':
-        if game.street_index < 3:
-            return avanzar_street_y_posible_acción_bot()
-        else:
-            current_hand_logs.append("Ronda de apuestas completada.")
-            return _resolve_showdown(current_hand_logs.copy())
+    # ✅ También cubrir CHECK-CHECK con CALL de 0
+    # ✅ Avanza si se cumple: CHECK (CALL de 0) + otro CHECK anterior → fin de ronda
+    # ✅ Avanza si:
+# - Se han hecho dos CHECKs seguidos ('cc')
+# - O el dealer es el bot y el jugador hace un CALL de 0 para igualar la BB
+    if action == Action.CALL and to_call == 0 and game.current_bet == 0:
+        is_check_check = len(game.history) >= 2 and game.history[-2:] == 'cc'
+        is_bot_dealer_preflop = game.street_index == 0 and game.dealer == 'bot' and game.history == 'c'
+
+        if is_check_check or is_bot_dealer_preflop:
+            if game.street_index < 3:
+                return avanzar_street_y_posible_acción_bot()
+            else:
+                current_hand_logs.append("Ronda de apuestas completada.")
+                return _resolve_showdown(current_hand_logs.copy())
+
+
+
+        # ✅ NO dejar que el bot actúe si preflop ya está cerrado correctamente
+    preflop_cerrado_y_equilibrado = (
+        game.street_index == 0 and
+        game.dealer == "bot" and
+        game.history == "cc" and
+        game.player_current_bet == game.bot_current_bet
+    )
+    if preflop_cerrado_y_equilibrado:
+        return avanzar_street_y_posible_acción_bot()
 
     respuesta = actuar_bot_si_toca()
     if respuesta:
@@ -342,6 +360,7 @@ def player_action():
         'sb': game.small_blind,
         'bb': game.big_blind
     })
+
 
 
 @app.route('/api/last_stats', methods=['GET'])
