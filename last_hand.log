@@ -1,35 +1,38 @@
-Dealer: BOT -> SB=40 (bot), BB=80 (jugador)
+Dealer: BOT -> SB=10 (bot), BB=20 (jugador)
 === Nueva mano ===
 Dealer: BOT
-Tus cartas: ['7H', 'TH']
-Fichas -> Tú: 1480 | Bot: 400 | Pot: 120
---- Nueva ronda de apuestas (inicia: PLAYER) ---
+Tus cartas: ['5S', '7H']
+Fichas -> Tú: 1020 | Bot: 950 | Pot: 30
+--- Nueva ronda de apuestas (inicia: BOT) ---
+Bot hace CALL de 10 fichas.
 Player hace CHECK.
-Bot hace CALL de 40 fichas.
+Bot hace CHECK.
 Ronda de apuestas completada.
-Flop: ['6H', '5S', '8H']
-Fichas -> Tú: 1480 | Bot: 360 | Pot: 160
+Flop: ['6C', 'KD', 'AH']
+Fichas -> Tú: 1020 | Bot: 940 | Pot: 40
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
+Player hace RAISE de 30 fichas (incluyendo call).
+Bot hace RAISE de 70 fichas (incluyendo call).
+Player hace CALL de 70 fichas.
+Ronda de apuestas completada.
+Turn: ['6C', 'KD', 'AH', '8H']
+Fichas -> Tú: 920 | Bot: 840 | Pot: 240
+--- Nueva ronda de apuestas (inicia: PLAYER) ---
+Player hace RAISE de 50 fichas (incluyendo call).
+Bot hace RAISE de 290 fichas (incluyendo call).
+Player hace CALL de 290 fichas.
+Ronda de apuestas completada.
+River: ['6C', 'KD', 'AH', '8H', 'JD']
+Fichas -> Tú: 580 | Bot: 500 | Pot: 920
 --- Nueva ronda de apuestas (inicia: PLAYER) ---
 Player hace CHECK.
 Bot hace CHECK.
 Ronda de apuestas completada.
-Turn: ['6H', '5S', '8H', '8S']
-Fichas -> Tú: 1480 | Bot: 360 | Pot: 160
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace RAISE de 200 fichas (incluyendo call).
-Bot hace CALL de 200 fichas.
-Ronda de apuestas completada.
-River: ['6H', '5S', '8H', '8S', '7S']
-Fichas -> Tú: 1280 | Bot: 160 | Pot: 560
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace RAISE de 160 fichas (incluyendo call).
-Bot hace CALL de 160 fichas.
-Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.
 Showdown!
-Tus cartas: ['7H', 'TH'] + Comunidad: ['6H', '5S', '8H', '8S', '7S']
-Cartas del bot: ['JC', '3C'] + Comunidad: ['6H', '5S', '8H', '8S', '7S']
-Tu mejor jugada: Dobles parejas de 8 y 7 con kicker 10
-Mejor jugada del bot: Pareja de 8 con kickers 11, 7, 6
--- Reparto del pot: Main Pot=880, Side Pot=0 (Total repartido: 880 fichas)
-¡Ganas la mano y te llevas el MAIN POT de 880 fichas!
-Fichas -> Tú: 2000 | Bot: 0 | Pot: 0
+Tus cartas: ['5S', '7H'] + Comunidad: ['6C', 'KD', 'AH', '8H', 'JD']
+Cartas del bot: ['AD', 'JS'] + Comunidad: ['6C', 'KD', 'AH', '8H', 'JD']
+Tu mejor jugada: Carta alta 14 con kickers 13, 11, 8, 7
+Mejor jugada del bot: Dobles parejas de 14 y 11 con kicker 13
+-- Reparto del pot: Main Pot=920, Side Pot=0 (Total repartido: 920 fichas)
+El bot gana la mano y se lleva MAIN+SIDE POT: 920 fichas.
+Fichas -> Tú: 580 | Bot: 1420 | Pot: 0

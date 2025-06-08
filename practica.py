@@ -629,6 +629,8 @@ class PokerGame:
 
     # --- Obtener quién inicia la ronda de apuestas ---
     def get_first_actor(self):
+        if self.street_index == 0:
+            return self.dealer
         # Big Blind actúa primero (el que no es dealer)
         return "bot" if self.dealer == "player" else "player"
 

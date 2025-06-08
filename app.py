@@ -118,30 +118,16 @@ def start_hand():
 
     current_hand_logs = logs.copy()
 
-    if game.get_first_actor() == "bot":
-        action, raise_amount = game.bot_decide_action(trainer)
-        ended = game.apply_action("bot", action, raise_amount=raise_amount)
-
-        current_hand_logs.append(f"Bot decide {action.name} con raise_amount={raise_amount}")
-
-        if ended:
-            current_hand_logs.append("Bot se retira. Tú ganas la mano.")
-            return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
+    
         
-        player_allin = game.player_chips == 0
-        bot_allin = game.bot_chips == 0
-        bets_equal = game.player_current_bet == game.bot_current_bet
-        if (player_allin or bot_allin) and bets_equal:
-            current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
-            return _resolve_showdown(current_hand_logs.copy())
+    player_allin = game.player_chips == 0
+    bot_allin = game.bot_chips == 0
+    bets_equal = game.player_current_bet == game.bot_current_bet
+    if (player_allin or bot_allin) and bets_equal:
+        current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
+        return _resolve_showdown(current_hand_logs.copy())
 
-        # Si hubo ALL-IN al inicio
-        player_allin = game.player_chips == 0
-        bot_allin = game.bot_chips == 0
-        bets_equal = game.player_current_bet == game.bot_current_bet
-        if (player_allin and bot_allin) or ((player_allin or bot_allin) and bets_equal):
-            current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
-            return _resolve_showdown(current_hand_logs.copy())
+        
 
     return jsonify({
         'player_hole': game.player_hole,
@@ -168,7 +154,68 @@ def player_action():
     if game is None:
         return jsonify({'error': 'No hay juego activo.'}), 400
 
-    data = request.json
+    data = request.get_json()
+    actor = data.get('actor', 'player')  # por defecto player
+
+    # ✅ FUNCION PARA QUE EL BOT ACTÚE CUANDO LE TOQUE
+    def actuar_bot_si_toca():
+        bot_action, bot_raise = game.bot_decide_action(trainer)
+        to_call_bot = game.current_bet - game.bot_current_bet
+
+        if bot_action == Action.FOLD and to_call_bot == 0:
+            bot_action = Action.CALL
+            bot_raise = None
+
+        ended_bot = game.apply_action("bot", bot_action, raise_amount=bot_raise)
+
+        if bot_action == Action.CALL and to_call_bot == 0:
+            current_hand_logs.append("Bot hace CHECK.")
+        elif bot_action == Action.CALL:
+            current_hand_logs.append(f"Bot hace CALL de {to_call_bot} fichas.")
+        elif bot_action == Action.FOLD:
+            current_hand_logs.append("Bot se retira (FOLD).")
+        elif bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]:
+            current_hand_logs.append(f"Bot hace RAISE de {bot_raise} fichas (incluyendo call).")
+
+        if ended_bot:
+            current_hand_logs.append("Bot se retira. Tú ganas la mano.")
+            return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
+
+        if (game.player_chips == 0 or game.bot_chips == 0) and \
+           (game.player_current_bet == game.bot_current_bet):
+            current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
+            return _resolve_showdown(current_hand_logs.copy())
+
+        return None
+
+    # 💥 1. Si es el turno del bot
+    if actor == 'bot':
+        respuesta = actuar_bot_si_toca()
+        if respuesta:
+            return respuesta
+
+        return jsonify({
+            'player_hole': game.player_hole,
+            'bot_hole': ["card_back", "card_back"],
+            'community_cards': (
+                (game.community_cards[:3] if game.street_index >= 1 else []) +
+                (game.community_cards[3:4] if game.street_index >= 2 else []) +
+                (game.community_cards[4:5] if game.street_index >= 3 else [])
+            ),
+            'pot': game.pot,
+            'player_chips': game.player_chips,
+            'bot_chips': game.bot_chips,
+            'dealer': game.dealer,
+            'street_index': game.street_index,
+            'history': game.history,
+            'to_act': "player",
+            'log': current_hand_logs.copy(),
+            'hand_ended': False,
+            'sb': game.small_blind,
+            'bb': game.big_blind
+        })
+
+    # 🧠 2. Si es el jugador quien actúa
     action_str = data.get('action')
     raise_amount = data.get('raise_amount')
     action = action_str_to_enum(action_str)
@@ -196,44 +243,12 @@ def player_action():
         current_hand_logs.append("Jugador se retiró. Bot gana la mano.")
         return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
 
-    # ✅ NUEVO: check inmediato por si quedó all-in + apuestas igualadas
     if (game.player_chips == 0 or game.bot_chips == 0) and \
        (game.player_current_bet == game.bot_current_bet):
         current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
         return _resolve_showdown(current_hand_logs.copy())
 
-    # Funciones internas: bot y avanzar calle
-    def actuar_bot_si_toca():
-        bot_action, bot_raise = game.bot_decide_action(trainer)
-        to_call_bot = game.current_bet - game.bot_current_bet
-
-        if bot_action == Action.FOLD and to_call_bot == 0:
-            bot_action = Action.CALL
-            bot_raise = None
-
-        ended_bot = game.apply_action("bot", bot_action, raise_amount=bot_raise)
-
-        if bot_action == Action.CALL and to_call_bot == 0:
-            current_hand_logs.append("Bot hace CHECK.")
-        elif bot_action == Action.CALL:
-            current_hand_logs.append(f"Bot hace CALL de {to_call_bot} fichas.")
-        elif bot_action == Action.FOLD:
-            current_hand_logs.append("Bot se retira (FOLD).")
-        elif bot_action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE]:
-            current_hand_logs.append(f"Bot hace RAISE de {bot_raise} fichas (incluyendo call).")
-
-        if ended_bot:
-            current_hand_logs.append("Bot se retira. Tú ganas la mano.")
-            return _end_hand_response(current_hand_logs.copy(), show_bot_cards=False)
-
-        # ✅ Check inmediato por si tras acción del bot se da el all-in + apuestas igualadas
-        if (game.player_chips == 0 or game.bot_chips == 0) and \
-           (game.player_current_bet == game.bot_current_bet):
-            current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
-            return _resolve_showdown(current_hand_logs.copy())
-
-        return None
-
+    # 📦 Sub-función para avanzar de calle y actuar el bot si toca
     def avanzar_street_y_posible_acción_bot():
         game.next_street()
         logs = ["Ronda de apuestas completada."]
@@ -247,7 +262,6 @@ def player_action():
         logs.append(f"--- Nueva ronda de apuestas (inicia: {game.get_first_actor().upper()}) ---")
         current_hand_logs.extend(logs)
 
-        # 🚨 ALL-IN tras avanzar calle
         if (game.player_chips == 0 or game.bot_chips == 0) and \
            (game.player_current_bet == game.bot_current_bet):
             current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
@@ -279,7 +293,7 @@ def player_action():
             'bb': game.big_blind
         })
 
-    # 1) CALL tras RAISE del bot
+    # Reglas para avanzar la ronda
     if action == Action.CALL and to_call > 0 and game.history.endswith('c'):
         if game.street_index < 3:
             return avanzar_street_y_posible_acción_bot()
@@ -287,7 +301,6 @@ def player_action():
             current_hand_logs.append("Ronda de apuestas completada.")
             return _resolve_showdown(current_hand_logs.copy())
 
-    # 2) Doble CHECK
     if game.current_bet == 0 and game.history[-2:] == 'cc':
         if game.street_index < 3:
             return avanzar_street_y_posible_acción_bot()
@@ -295,12 +308,10 @@ def player_action():
             current_hand_logs.append("Ronda de apuestas completada.")
             return _resolve_showdown(current_hand_logs.copy())
 
-    # 3) Acción normal del bot
     respuesta = actuar_bot_si_toca()
     if respuesta:
         return respuesta
 
-    # 4) Avanzar calle si apuestas igualadas
     if game.player_current_bet == game.bot_current_bet and len(game.history) >= 2:
         if game.street_index < 3:
             return avanzar_street_y_posible_acción_bot()
@@ -308,11 +319,9 @@ def player_action():
             current_hand_logs.append("Ronda de apuestas completada.")
             return _resolve_showdown(current_hand_logs.copy())
 
-    # 5) Última calle (por seguridad)
     if game.street_index == 4:
         return _resolve_showdown(current_hand_logs.copy())
 
-    # 6) Mano continúa
     return jsonify({
         'player_hole': game.player_hole,
         'bot_hole': ["card_back", "card_back"],

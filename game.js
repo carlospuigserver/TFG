@@ -258,6 +258,38 @@ async function iniciarPartida() {
     } else {
       enableActions(false);
       botMessageDiv.textContent = 'Esperando acción del bot...';
+      fetch('/api/player_action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actor: 'bot' })
+    })
+    .then(res => res.json())
+    .then(data => {
+      gameState = data;
+      renderCards();
+      updateStatus();
+      if (data.log) updateBotMessage(data.log);
+      if (data.hand_ended) {
+        if (data.player_chips === 0) marcador.bot++;
+        if (data.bot_chips === 0) marcador.player++;
+        manosJugadas++;
+        playerWinsSpan.textContent = marcador.player;
+        botWinsSpan.textContent = marcador.bot;
+        showdownCenterDiv.textContent = "Fin de la mano";
+        enableActions(false);
+        playerMessageDiv.textContent = 'Mano terminada.';
+        btnNuevaMano.disabled = false;
+        btnEstadisticas.disabled = false;
+        sideButtonsDiv.style.display = 'flex';
+      } else if (data.to_act === "player") {
+        setTimeout(() => {
+          enableActions(true);
+        }, 300);
+      }
+    })
+    .catch(err => {
+      console.error("Error al solicitar acción del bot:", err);
+    });
     }
   }
 
