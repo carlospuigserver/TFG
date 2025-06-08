@@ -586,11 +586,11 @@ class PokerGame:
         # =========================
         if action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and raise_amount is not None:
             # Si sugerido > 40% del stack, forzamos revisión
-            if raise_amount > self.bot_chips * 0.4:
+            if raise_amount > self.bot_chips * 0.1:
                 eq_bot = real_equity_estimate(
                     hole_cards_numeric,
                     community_numeric,
-                    num_sim=500
+                    num_sim=2000
                 )
                 # Calcular “pot odds” aproximadas después de este raise
                 candidate_raise = raise_amount
