@@ -164,23 +164,13 @@ class PokerGame:
         # 👇⚠️ Check ciegas antes de arrancar
         result = self.post_blinds()
         self.player_contrib = self.player_current_bet  # ← Añadir esto
-        self.bot_contrib = self.bot_current_bet        # ← Añadir esto
-
+        self.bot_contrib = self.bot_current_bet 
         if result == 'allin':
-            # Calcular correctamente los aportes REALES de cada jugador antes del allin
-            if self.dealer == "player":
-                sb = min(self.small_blind, self.player_chips + self.player_current_bet)
-                bb = min(self.big_blind, self.bot_chips + self.bot_current_bet)
-                self.player_contrib = sb
-                self.bot_contrib = bb
-            else:
-                sb = min(self.small_blind, self.bot_chips + self.bot_current_bet)
-                bb = min(self.big_blind, self.player_chips + self.player_current_bet)
-                self.bot_contrib = sb
-                self.player_contrib = bb
-
-            self.pot = self.player_contrib + self.bot_contrib
+            self.reveal_remaining_community_cards()
+            self.showdown()
             return 'allin'
+
+        
         # 🔍 Sanity check de integridad
         total_in_game = self.player_chips + self.bot_chips + self.pot
         if total_in_game != 2000:
@@ -262,8 +252,43 @@ class PokerGame:
                     # ALL-IN implícito: apostar todo su stack
                     raise_amount = stack
 
+            # 🔒 Protección contra raises negativos o inválidos
+            if raise_amount is None or raise_amount <= 0:
+                print(f"⚠️ Raise inválido o nulo ({raise_amount}). Acción convertida a CALL.")
+                action = Action.CALL
+                raise_amount = None
+
+            max_raise = stack - to_call
+            if max_raise < 0:
+                max_raise = 0
+
+            raise_amount = min(raise_amount, max_raise)
+
+            # 🔒 PARCHE NUEVO: limitar raise por stack del oponente también
+            opponent_stack = self.bot_chips if actor == "player" else self.player_chips
+            raise_amount = min(raise_amount, opponent_stack)
+
             total_put = to_call + raise_amount
-            total_put = min(total_put, stack)
+
+            
+            if stack < to_call:
+                print(f"⚠️ {actor.capitalize()} no puede cubrir el CALL completo ({to_call}). Hace ALL-IN con {stack} fichas.")
+
+                if actor == "player":
+                    self.player_chips = 0
+                    self.player_current_bet += stack
+                    self.player_contrib += stack
+                else:
+                    self.bot_chips = 0
+                    self.bot_current_bet += stack
+                    self.bot_contrib += stack
+
+                self.pot += stack
+                self.history += 'c'
+                return False
+
+
+
 
             if actor == "player":
                 self.player_chips -= total_put
@@ -285,6 +310,20 @@ class PokerGame:
         else:
             print("Acción no reconocida.")
             return False
+        
+                # ✅ Si alguno se quedó sin fichas y las apuestas quedaron igualadas, forzar showdown
+        #if (self.player_chips == 0 or self.bot_chips == 0) and \
+         #  (self.player_current_bet == self.bot_current_bet):
+          #  print("✅ Ambos all-in o igualaron con all-in. Se revela todo.")
+           # return True  # Marca fin de la mano para que se active el showdown en app.py
+
+        # ✅ Solo terminar si hay all-in Y apuestas igualadas
+        if (self.player_chips == 0 or self.bot_chips == 0) and \
+        (self.player_current_bet == self.bot_current_bet):
+            print("✅ Ambos all-in o apuestas igualadas con all-in. Se revela todo.")
+            return True
+
+
 
         return False  # Indica que la mano continúa
 
@@ -533,6 +572,10 @@ class PokerGame:
             else:
                 pot_odds = 1.0
 
+            
+            # 💥 PARCHE: permitir all-in parcial si no puede pagar completo
+            if self.bot_chips > 0 and self.bot_chips < to_call:
+                return Action.CALL, None  # all-in parcial permitido
             # 3) Si equity ≤ pot_odds → fold
             if eq_bot <= pot_odds:
                 return Action.FOLD, None
@@ -620,9 +663,12 @@ class PokerGame:
                     raise_amount = self.bot_chips
 
         if action in [Action.RAISE_SMALL, Action.RAISE_MEDIUM, Action.RAISE_LARGE] and raise_amount is not None:
-            max_legal_raise = self.bot_chips - (self.current_bet - self.bot_current_bet)
-            raise_amount = max(0, min(raise_amount, max_legal_raise))
+            to_call = self.current_bet - self.bot_current_bet
+            opponent_stack = self.player_chips  # porque el bot está actuando
+            max_legal_raise = min(self.bot_chips - to_call, opponent_stack)
 
+            raise_amount = max(0, min(raise_amount, max_legal_raise))
+# =========================
             # Si después del límite no queda nada para subir, convierte a CALL
             if raise_amount <= 0:
                 action = Action.CALL
@@ -637,7 +683,7 @@ class PokerGame:
         # Big Blind actúa primero (el que no es dealer)
         return "bot" if self.dealer == "player" else "player"
 
-    # --- Ronda de apuestas con lógica all-in + check integrada ---
+    # --- Ronda de apuestas con lógica all-in + check integrada 
     def betting_round(self, starter, trainer):
         has_acted = {"player": False, "bot": False}
         current_turn = starter
@@ -646,7 +692,7 @@ class PokerGame:
         while True:
             # 1) Si ambos han actuado e igualaron apuestas → acaba esta ronda
             if has_acted["player"] and has_acted["bot"] and \
-               self.player_current_bet == self.bot_current_bet:
+            self.player_current_bet == self.bot_current_bet:
                 print("Ronda de apuestas completada.")
                 self.print_chip_counts()
                 return "continue"
@@ -661,63 +707,55 @@ class PokerGame:
                 print("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
                 return "all_in"
 
-            # Caso B: uno está ALL-IN y las apuestas NO están igualadas → el otro debe CALL o FOLD
+            # ✅ CASO B PARCHEADO: uno está all-in, apuestas NO igualadas → que actúe el otro sólo si puede pagar
             if (player_allin or bot_allin) and not bets_equal:
                 if current_turn == "player":
                     print("Estás contra un ALL IN y debes decidir call o fold.")
                     action_str = input("Tu acción (call, fold): ").strip().lower()
                     if action_str == "fold":
                         ended = self.apply_action("player", Action.FOLD)
-                        if ended:
-                            return "fold"
+                        return "fold"
                     elif action_str == "call":
                         ended = self.apply_action("player", Action.CALL)
-                        if ended:
-                            return "fold"
+                        return "all_in"
                     else:
                         print("Acción no válida.")
                         continue
-                    return "all_in"
                 else:
-                    # Turno del bot contra all-in
+                    # BOT está contra un all-in del jugador
                     to_call = self.current_bet - self.bot_current_bet
-                    if to_call > 0:
-                        paid = min(to_call, self.bot_chips)
-                        self.bot_chips -= paid
-                        self.bot_current_bet += paid
-                        self.bot_contrib += paid
-                        self.pot += paid
-                        if paid == 0:
-                            print("Bot quiere igualar pero está ALL IN con 0 fichas.")
-                        else:
-                            print(f"Bot hace CALL de {paid} fichas para igualar el all-in.")
+                    max_pay = min(to_call, self.bot_chips)
+
+                    if max_pay > 0:
+                        self.bot_chips -= max_pay
+                        self.bot_current_bet += max_pay
+                        self.bot_contrib += max_pay
+                        self.pot += max_pay
+                        print(f"Bot hace CALL de {max_pay} fichas para igualar el all-in.")
                     else:
-                        print("Bot hace CHECK contra un all-in.")
+                        print("Bot está all-in o no necesita igualar. CHECK forzado.")
+
                     return "all_in"
 
-            # 3) Turno normal (no ALL-IN)
+            # 3) Turno normal
             if current_turn == "player":
                 action_str = input("Tu acción (fold, call, raise): ").strip().lower()
                 if action_str == "fold":
                     ended = self.apply_action("player", Action.FOLD)
-                    if ended:
-                        return "fold"
+                    return "fold" if ended else "continue"
                 elif action_str == "call":
                     ended = self.apply_action("player", Action.CALL)
-                    if ended:
-                        return "fold"
+                    return "fold" if ended else "continue"
                 elif action_str == "raise":
                     try:
                         raise_amount = int(input("Monto de raise (>0): "))
+                        if raise_amount <= 0:
+                            raise ValueError
                     except:
                         print("Monto inválido, intenta de nuevo.")
                         continue
-                    if raise_amount <= 0:
-                        print("Monto debe ser mayor que 0.")
-                        continue
                     ended = self.apply_action("player", Action.RAISE_MEDIUM, raise_amount=raise_amount)
-                    if ended:
-                        return "fold"
+                    return "fold" if ended else "continue"
                 else:
                     print("Acción no reconocida.")
                     continue
@@ -728,11 +766,8 @@ class PokerGame:
             else:
                 # Turno del BOT
                 action, raise_amount = self.bot_decide_action(trainer)
-
-                # Calculamos cuánto necesita para call
                 to_call_bot = self.current_bet - self.bot_current_bet
 
-                # Si el bot decide FOLD pero no hay nada que pagar (to_call_bot == 0), interpretamos como CHECK
                 if action == Action.FOLD and to_call_bot == 0:
                     print("Bot decide FOLD pero es CHECK (no hay nada que pagar).")
                     print("Bot hace CHECK.")
@@ -745,10 +780,12 @@ class PokerGame:
                 ended = self.apply_action("bot", action, raise_amount=raise_amount)
                 if ended:
                     return "fold"
+
                 has_acted["bot"] = True
                 current_turn = "player"
 
             print(f"Apuestas -> Tú: {self.player_current_bet} | Bot: {self.bot_current_bet} | Pot: {self.pot}")
+
 
     # --- Juego completo con integración all-in + check ---
     def play_hand(self, trainer):
