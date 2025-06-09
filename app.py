@@ -13,7 +13,7 @@ sb = initial_sb
 bb = initial_bb
 manos_desde_reset = 0
 # Carga del trainer entrenado (CFR)
-with open('cfr_entreno.pkl', 'rb') as f:
+with open('cfr_entrenado_completo.pkl', 'rb') as f:
     trainer = pickle.load(f)
 
 game = None
@@ -80,6 +80,17 @@ def start_hand():
     last_dealer = game.dealer  # Actualizar el global
 
     result = game.start_hand()
+    # ✅ Si uno está all-in preflop y ya igualaron apuestas, pasamos directo a showdown
+    if (player_stack == 0 or bot_stack == 0) and (sb == bb):
+        current_hand_logs = [
+            f"Tus cartas: {game.player_hole}",
+            f"Cartas del bot: {game.bot_hole}",
+            f"Comunitarias: {game.community_cards}",
+            format_chips(),
+            "--- Showdown directo: alguno está all-in preflop ---"
+        ]
+        return _resolve_showdown(current_hand_logs.copy())
+
 
     if result == 'allin':
         logs = [
@@ -158,7 +169,28 @@ def player_action():
     actor = data.get('actor', 'player')
 
     def actuar_bot_si_toca():
+        
+        # ⛔️ No actuar si ya terminó la última ronda (River cerrado)
+        if (
+            game.street_index == 3 and
+            game.player_current_bet == game.bot_current_bet
+            and len(game.history) >= 1
+            and game.history[-1] in ['c', 'f']
+        ):
+            current_hand_logs.append("Ronda de apuestas completada.")
+            return _resolve_showdown(current_hand_logs.copy())
+        
+        
+            
         bot_action, bot_raise = game.bot_decide_action(trainer)
+        # ⛔️ No actuar si la ronda ya está cerrada tras RAISE + CALL
+        if (
+            game.player_current_bet == game.bot_current_bet
+            and len(game.history) >= 2
+            and game.history[-2:] in ['rc', 'cr', 'rr', 'r', 'c']
+        ):
+            return None
+
         to_call_bot = game.current_bet - game.bot_current_bet
 
         if bot_action == Action.FOLD and to_call_bot == 0:

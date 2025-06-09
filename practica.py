@@ -288,6 +288,9 @@ class PokerGame:
 
         return False  # Indica que la mano continúa
 
+    
+    
+    
     # --- Mostrar stacks ---
     def print_chip_counts(self):
         print(f"Fichas -> Tú: {self.player_chips} | Bot: {self.bot_chips} | Pot: {self.pot}")
@@ -778,7 +781,7 @@ class PokerGame:
 
 def main():
     # Cargar trainer entrenado (CFR)
-    with open("cfr_entreno.pkl", "rb") as f:
+    with open("cfr_entrenado_completo.pkl", "rb") as f:
         trainer = pickle.load(f)
 
     game = PokerGame()

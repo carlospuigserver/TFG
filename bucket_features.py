@@ -3,7 +3,9 @@ import numpy as np
 from poker_env import INITIAL_STACK
 from treys import Card as TreysCard, Evaluator as TreysEvaluator
 
+
 _evaluator = TreysEvaluator()
+
 
 # ------------------------------------------
 # Función para convertir (rank, suit) → Treys
@@ -15,6 +17,7 @@ def _card_to_str(card):
     s = suit_map.get(card[1], 's')
     return r + s
 
+
 # --------------------------------------------------------
 # 1) SIMULACIÓN DE EQUITY REAL CON PERFIL DE OPONENTE
 # --------------------------------------------------------
@@ -24,13 +27,16 @@ def is_hand_in_range(card1, card2, profile="balanced"):
     gap = abs(ranks_sorted[0] - ranks_sorted[1])
     same_suit = suits_list[0] == suits_list[1]
 
+
     high_card = ranks_sorted[0]
     low_card = ranks_sorted[1]
+
 
     is_pair = high_card == low_card
     is_suited = same_suit
     is_connector = gap <= 1
     both_high = high_card >= 11 and low_card >= 10  # QJ, KQ, AJ...
+
 
     if profile == "tight":
         if is_pair and high_card >= 9:
@@ -40,6 +46,7 @@ def is_hand_in_range(card1, card2, profile="balanced"):
         if is_connector and is_suited and high_card >= 10:
             return True
         return False
+
 
     elif profile == "loose":
         if is_pair:
@@ -52,6 +59,7 @@ def is_hand_in_range(card1, card2, profile="balanced"):
             return True
         return False
 
+
     else:  # "balanced"
         if is_pair and high_card >= 7:
             return True
@@ -63,13 +71,16 @@ def is_hand_in_range(card1, card2, profile="balanced"):
             return True
         return False
 
+
 def real_equity_estimate(hole, community, num_sim=100, profile="balanced"):
     ranks = list(range(2, 15))
     suits = list(range(4))
     full_deck = [(r, s) for s in suits for r in ranks]
 
+
     used = set(hole + community)
     deck = [c for c in full_deck if c not in used]
+
 
     # Generar posibles manos del oponente
     possible_opp_hands = []
@@ -79,34 +90,42 @@ def real_equity_estimate(hole, community, num_sim=100, profile="balanced"):
             if is_hand_in_range(c1, c2, profile=profile):
                 possible_opp_hands.append((c1, c2))
 
+
     # Si ninguna mano pasó el filtro, usar todas
     if not possible_opp_hands:
         for i in range(len(deck)):
             for j in range(i + 1, len(deck)):
                 possible_opp_hands.append((deck[i], deck[j]))
 
+
     wins = 0
     ties = 0
     losses = 0
+
 
     for _ in range(num_sim):
         random.shuffle(possible_opp_hands)
         opp_hole = possible_opp_hands[0]
 
+
         missing = 5 - len(community)
         board = community.copy()
+
 
         used_sim = set(hole + community + list(opp_hole))
         deck_sim = [c for c in full_deck if c not in used_sim]
         random.shuffle(deck_sim)
         board.extend(deck_sim[:missing])
 
+
         treys_board = [TreysCard.new(_card_to_str(c)) for c in board]
         treys_hand0 = [TreysCard.new(_card_to_str(c)) for c in hole]
         treys_hand1 = [TreysCard.new(_card_to_str(c)) for c in opp_hole]
 
+
         score0 = _evaluator.evaluate(treys_board, treys_hand0)
         score1 = _evaluator.evaluate(treys_board, treys_hand1)
+
 
         if score0 < score1:
             wins += 1
@@ -115,10 +134,12 @@ def real_equity_estimate(hole, community, num_sim=100, profile="balanced"):
         else:
             losses += 1
 
+
     total = wins + ties + losses
     if total == 0:
         return 0.0
     return (wins + ties / 2) / total
+
 
 # --------------------------------------------------------
 # 2) FEATURES “ENRIQUECIDAS” PARA BUCKETIZACIÓN AVANZADA
@@ -131,6 +152,7 @@ def has_flush_draw(hole, community):
             return 1
     return 0
 
+
 def has_straight_draw(hole, community):
     ranks = set([c[0] for c in hole + community])
     for r in range(2, 11):
@@ -139,6 +161,7 @@ def has_straight_draw(hole, community):
     if {14, 2, 3, 4}.issubset(ranks):
         return 1
     return 0
+
 
 def board_connectedness(community):
     if len(community) < 3:
@@ -151,17 +174,54 @@ def board_connectedness(community):
             pairs += 1
     return pairs / total_pairs if total_pairs > 0 else 0.0
 
+
 def effective_hand_strength(hole, community, num_mc=50):
     return real_equity_estimate(hole, community, num_sim=num_mc)
+
+
+def classify_relative_hand(hole, community):
+    # 🛑 Si no hay suficientes cartas, no clasificamos aún
+    if len(hole) + len(community) < 5:
+        return "air"  # Valor por defecto antes del flop
+
+
+    treys_board = [TreysCard.new(_card_to_str(c)) for c in community]
+    treys_hole = [TreysCard.new(_card_to_str(c)) for c in hole]
+
+
+    full_eval = _evaluator.evaluate(treys_board, treys_hole)
+
+
+    if full_eval == 1:
+        return "nuts"
+    elif full_eval < 300:
+        return "full"
+    elif full_eval < 600:
+        return "flush"
+    elif full_eval < 900:
+        return "straight"
+    elif full_eval < 1600:
+        return "trips"
+    elif full_eval < 2000:
+        return "two_pair"
+    elif full_eval < 2400:
+        return "top_pair"
+    elif full_eval < 2800:
+        return "weak_pair"
+    else:
+        return "air"
+
 
 
 
 def hand_to_features_enhanced(hole, community, pot, history, to_act):
     f = []
 
+
     # 1) Cartas propias
     for c in hole:
         f.extend(c)
+
 
     # 2) Cartas comunitarias (rellenar hasta 5)
     for i in range(5):
@@ -170,22 +230,52 @@ def hand_to_features_enhanced(hole, community, pot, history, to_act):
         else:
             f.extend([0, 0])
 
+
+
+
+   
+
+
     # 3) Pot normalizado
     f.append(pot / INITIAL_STACK)
+
 
     # 4) To act (0 o 1)
     f.append(to_act)
 
+
     # 5) Número de raises
     f.append(history.count('r'))
+
 
     # 6) Flags
     f.append(has_flush_draw(hole, community))
     f.append(has_straight_draw(hole, community))
     f.append(board_connectedness(community))
 
+
     # 7) EHS y pot ratio
     f.append(effective_hand_strength(hole, community, num_mc=20))
     f.append(pot / (pot + 2 * INITIAL_STACK))
+
+
+    # 9) Tipo de mano según fuerza relativa
+    hand_class = classify_relative_hand(hole, community)
+    class_to_num = {
+        'air': 0,
+        'weak_pair': 1,
+        'top_pair': 2,
+        'two_pair': 3,
+        'trips': 4,
+        'set': 5,
+        'straight': 6,
+        'flush': 7,
+        'full': 8,
+        'nuts': 9
+    }
+    f.append(class_to_num.get(hand_class, 0))  # default = air
+
+
+
 
     return np.array(f, dtype=float)
