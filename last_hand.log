@@ -1,24 +1,15 @@
-Dealer: JUGADOR -> SB=20 (jugador), BB=40 (bot)
-=== Nueva mano ===
-Dealer: PLAYER
-Tus cartas: ['9C', 'TH']
-Fichas -> Tú: 490 | Bot: 1450 | Pot: 60
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace CALL de 20 fichas.
-Bot hace RAISE de 80 fichas (incluyendo call).
-Player hace CALL de 80 fichas.
-Ronda de apuestas completada.
-Flop: ['7H', 'AC', 'QS']
-Fichas -> Tú: 390 | Bot: 1370 | Pot: 240
---- Nueva ronda de apuestas (inicia: BOT) ---
-Bot hace CHECK.
-Player hace RAISE de 450 fichas (incluyendo call).
-Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.
+=== Mano forzada con all-in automático ===
+Tus cartas: ['QH', 'KH']
+Cartas del bot: ['2S', 'TS']
+Comunitarias: ['6S', '8D', '3C', 'TC', '7C']
+Fichas -> Tú: 0 | Bot: 100 | Pot: 0
+--- Showdown directo por falta de fichas ---
 Showdown!
-Tus cartas: ['9C', 'TH'] + Comunidad: ['7H', 'AC', 'QS', 'KS', '9D']
-Cartas del bot: ['7S', 'QD'] + Comunidad: ['7H', 'AC', 'QS', 'KS', '9D']
-Tu mejor jugada: Pareja de 9 con kickers 14, 13, 12
-Mejor jugada del bot: Dobles parejas de 12 y 7 con kicker 14
--- Reparto del pot: Main Pot=1020, Side Pot=0 (Total repartido: 1020 fichas)
-El bot gana la mano y se lleva MAIN+SIDE POT: 1020 fichas.
-Fichas -> Tú: 0 | Bot: 2000 | Pot: 0
+Tus cartas: ['QH', 'KH'] + Comunidad: ['6S', '8D', '3C', 'TC', '7C']
+Cartas del bot: ['2S', 'TS'] + Comunidad: ['6S', '8D', '3C', 'TC', '7C']
+Tu mejor jugada: Carta alta 13 con kickers 12, 10, 8, 7
+Mejor jugada del bot: Pareja de 10 con kickers 8, 7, 6
+-- Reparto del pot: Main Pot=100, Side Pot=1900 (Pot total: 2000 fichas)
+El bot gana la mano y se lleva el MAIN POT de 100 fichas.
+El SIDE POT (1900 fichas) lo gana el bot porque aportó más.
+Fichas -> Tú: 0 | Bot: 2100 | Pot: 0

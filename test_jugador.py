@@ -1,35 +1,26 @@
-# test_bot_raise_forzado_allin.py
+# test_jugador.py
+from practica import PokerGame
 
-from practica import PokerGame, Action
+def test_allin_ciegas_simetrico():
+    print("\n=== TEST: ALL-IN FORZADO EN CIEGAS (Jugador sin fichas) ===")
+    game1 = PokerGame(player_chips=5, bot_chips=1995, small_blind=10, big_blind=20)
+    game1.dealer = "bot"  # Bot reparte → jugador es BB
+    result1 = game1.start_hand()
 
-def test_forzar_raise_excesivo_y_recorte():
-    # Creamos juego con el bot limitado a 300 fichas
-    game = PokerGame(player_chips=1000, bot_chips=300, small_blind=10, big_blind=20)
-    game.dealer = "bot"  # El bot es SB
+    total_fichas1 = game1.player_chips + game1.bot_chips + game1.pot
+    assert total_fichas1 == 2000, f"❌ ERROR: Fichas tras showdown (jugador sin stack): {total_fichas1}"
+    print(f"🎯 Fichas tras showdown (jugador sin stack): {total_fichas1}")
 
-    game.shuffle_deck()
-    game.deal_cards()
-    game.post_blinds()
+    print("\n=== TEST: ALL-IN FORZADO EN CIEGAS (Bot sin fichas) ===")
+    game2 = PokerGame(player_chips=1995, bot_chips=5, small_blind=10, big_blind=20)
+    game2.dealer = "player"  # Jugador reparte → bot es BB
+    result2 = game2.start_hand()
 
-    print("=== TEST FORZADO: BOT INTENTA RAISE DE 600 CON SOLO 300 ===")
-    print(f"Chips iniciales del bot: {game.bot_chips}")
-    print(f"Contribución inicial SB: {game.bot_contrib}")
+    total_fichas2 = game2.player_chips + game2.bot_chips + game2.pot
+    assert total_fichas2 == 2000, f"❌ ERROR: Fichas tras showdown (bot sin stack): {total_fichas2}"
+    print(f"🎯 Fichas tras showdown (bot sin stack): {total_fichas2}")
 
-    # Forzamos al bot a intentar raise de 600 fichas
-    forced_action = Action.RAISE_LARGE
-    forced_raise_amount = 600
-
-    game.apply_action("bot", forced_action, raise_amount=forced_raise_amount)
-
-    total_contrib = game.bot_contrib
-    print(f"Contribución final del bot tras raise forzado: {total_contrib}")
-    print(f"Stack restante del bot: {game.bot_chips}")
-    print(f"Historial: {game.history}")
-
-    assert total_contrib == 300, f"El bot no fue recortado correctamente: contribuyó {total_contrib} con stack 300"
-    assert game.bot_chips == 0, "El bot debería estar all-in"
-
-    print("✅ El raise fue recortado correctamente al stack disponible (300 fichas).")
+    print("\n✅ Test completado: los all-ins forzados en ciegas funcionan y no inflan fichas.")
 
 if __name__ == "__main__":
-    test_forzar_raise_excesivo_y_recorte()
+    test_allin_ciegas_simetrico()

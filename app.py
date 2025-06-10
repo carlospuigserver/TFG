@@ -497,12 +497,13 @@ def _resolve_showdown(logs_before):
     player_desc = game.describe_hand(player_best)
     bot_desc = game.describe_hand(bot_best)
 
-    contrib_player = game.player_contrib
-    contrib_bot = game.bot_contrib
-    main_contrib = min(contrib_player, contrib_bot)
+    main_contrib = min(game.player_contrib, game.bot_contrib)
     main_pot = main_contrib * 2
-    side_pot = abs(contrib_player - contrib_bot)
-    total_pot = main_pot + side_pot
+    total_pot = game.player_contrib + game.bot_contrib
+    side_pot = total_pot - main_pot
+
+
+
 
 
     cmp = game.compare_hands(player_best, bot_best)
@@ -513,7 +514,8 @@ def _resolve_showdown(logs_before):
         f"Cartas del bot: {game.bot_hole} + Comunidad: {game.community_cards}",
         f"Tu mejor jugada: {player_desc}",
         f"Mejor jugada del bot: {bot_desc}",
-        f"-- Reparto del pot: Main Pot={main_pot}, Side Pot={side_pot} (Total repartido: {main_pot + side_pot} fichas)"
+        f"-- Reparto del pot: Main Pot={main_pot}, Side Pot={side_pot} (Pot total: {total_pot} fichas)"
+
 
     ]
 
@@ -521,27 +523,38 @@ def _resolve_showdown(logs_before):
         showdown_logs.append(f"¡Ganas la mano y te llevas el MAIN POT de {main_pot} fichas!")
         game.player_chips += main_pot
         if side_pot > 0:
-            if contrib_player > contrib_bot:
+            # El side pot va al jugador solo si aportó más que el bot
+            if game.player_contrib > game.bot_contrib:
                 showdown_logs.append(f"El SIDE POT ({side_pot} fichas) lo ganas tú porque aportaste más.")
                 game.player_chips += side_pot
             else:
                 showdown_logs.append(f"El SIDE POT ({side_pot} fichas) retorna al bot.")
                 game.bot_chips += side_pot
+
     elif cmp < 0:
-        total_win = main_pot + side_pot
-        showdown_logs.append(f"El bot gana la mano y se lleva MAIN+SIDE POT: {total_win} fichas.")
-        game.bot_chips += total_win
+        showdown_logs.append(f"El bot gana la mano y se lleva el MAIN POT de {main_pot} fichas.")
+        game.bot_chips += main_pot
+        if side_pot > 0:
+            if game.bot_contrib > game.player_contrib:
+                showdown_logs.append(f"El SIDE POT ({side_pot} fichas) lo gana el bot porque aportó más.")
+                game.bot_chips += side_pot
+            else:
+                showdown_logs.append(f"El SIDE POT ({side_pot} fichas) retorna al jugador.")
+                game.player_chips += side_pot
+
     else:
+        # Empate: se reparte el MAIN POT
         half_main = main_pot // 2
-        showdown_logs.append(f"Empate. Se reparte MAIN POT: cada uno recibe {half_main} fichas.")
+        showdown_logs.append(f"Empate. Se reparte el MAIN POT: {half_main} fichas para cada uno.")
         game.player_chips += half_main
         game.bot_chips += half_main
         if side_pot > 0:
             showdown_logs.append(f"El SIDE POT ({side_pot} fichas) va al que aportó más.")
-            if contrib_bot > contrib_player:
-                game.bot_chips += side_pot
-            else:
+            if game.player_contrib > game.bot_contrib:
                 game.player_chips += side_pot
+            else:
+                game.bot_chips += side_pot
+
 
     
     game.pot = 0
