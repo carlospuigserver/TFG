@@ -199,6 +199,14 @@ def player_action():
 
         ended_bot = game.apply_action("bot", bot_action, raise_amount=bot_raise)
 
+                # ✅ Nuevo chequeo: si el bot está all-in y el jugador ya no tiene que igualar nada
+        if game.bot_chips == 0:
+            to_call_player = game.current_bet - game.player_current_bet
+            if to_call_player == 0:
+                current_hand_logs.append("✅ Bot está all-in. Se revela todo.")
+                return _resolve_showdown(current_hand_logs.copy())
+
+
         # ✅ Corte si hay all-in e igualaron
         if (game.player_chips == 0 or game.bot_chips == 0) and \
         (game.player_current_bet == game.bot_current_bet):
@@ -263,11 +271,19 @@ def player_action():
     player_logs = []
     ended = game.apply_action("player", action, raise_amount=raise_amount)
 
+        # ✅ Nuevo chequeo: si el jugador está all-in y el bot ya no tiene nada que igualar
+    if game.player_chips == 0:
+        to_call_bot = game.current_bet - game.bot_current_bet
+        if to_call_bot == 0:
+            current_hand_logs.append("✅ Jugador está all-in. Se revela todo.")
+            return _resolve_showdown(current_hand_logs.copy())
+        
     # ✅ Corte si hay all-in e igualaron
     if (game.player_chips == 0 or game.bot_chips == 0) and \
     (game.player_current_bet == game.bot_current_bet):
         current_hand_logs.append("Ambos jugadores están ALL IN o apuestas igualadas con all-in. Se revela todo y showdown.")
         return _resolve_showdown(current_hand_logs.copy())
+
 
 
     if action == Action.CALL:

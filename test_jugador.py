@@ -1,68 +1,35 @@
+# test_bot_raise_forzado_allin.py
+
 from practica import PokerGame, Action
-import pickle
 
-class MockTrainer:
-    def __init__(self):
-        self.kmeans_models = {}
-        self.nodes = {}
-
-def test_manual_raise_input():
-    game = PokerGame(player_chips=500, bot_chips=50)
-    trainer = MockTrainer()
+def test_forzar_raise_excesivo_y_recorte():
+    # Creamos juego con el bot limitado a 300 fichas
+    game = PokerGame(player_chips=1000, bot_chips=300, small_blind=10, big_blind=20)
+    game.dealer = "bot"  # El bot es SB
 
     game.shuffle_deck()
     game.deal_cards()
+    game.post_blinds()
 
-    # Salteamos blinds
-    game.pot = 0
-    game.current_bet = 0
-    game.player_current_bet = 0
-    game.bot_current_bet = 0
-    game.player_contrib = 0
-    game.bot_contrib = 0
-    game.community_cards = ['AS', 'KH', '3D', '7C']
-    game.street_index = 2  # Turn
+    print("=== TEST FORZADO: BOT INTENTA RAISE DE 600 CON SOLO 300 ===")
+    print(f"Chips iniciales del bot: {game.bot_chips}")
+    print(f"Contribución inicial SB: {game.bot_contrib}")
 
-    print("=== TEST INTERACTIVO ===")
-    print(f"Tus fichas: {game.player_chips}")
-    print(f"Fichas del bot: {game.bot_chips}")
-    print("Cartas comunitarias:", game.community_cards)
+    # Forzamos al bot a intentar raise de 600 fichas
+    forced_action = Action.RAISE_LARGE
+    forced_raise_amount = 600
 
-    # Te toca hablar a vos
-    action_str = input("Tu acción (call, raise, fold): ").strip().lower()
-    
-    if action_str == "fold":
-        game.apply_action("player", Action.FOLD)
-        return
-    elif action_str == "call":
-        game.apply_action("player", Action.CALL)
-    elif action_str == "raise":
-        try:
-            amount = int(input("¿Cuánto querés subir?: "))
-            game.apply_action("player", Action.RAISE_LARGE, raise_amount=amount)
-        except:
-            print("Monto inválido.")
-            return
-    else:
-        print("Acción no válida.")
-        return
+    game.apply_action("bot", forced_action, raise_amount=forced_raise_amount)
 
-    # Le toca al bot decidir si iguala
-    to_call = game.current_bet - game.bot_current_bet
-    max_pay = min(to_call, game.bot_chips)
+    total_contrib = game.bot_contrib
+    print(f"Contribución final del bot tras raise forzado: {total_contrib}")
+    print(f"Stack restante del bot: {game.bot_chips}")
+    print(f"Historial: {game.history}")
 
-    if max_pay > 0:
-        print(f"\nBot iguala con {max_pay} (all-in)")
-        game.bot_chips -= max_pay
-        game.bot_current_bet += max_pay
-        game.bot_contrib += max_pay
-        game.pot += max_pay
-    else:
-        print("\nBot no necesita pagar nada (CHECK)")
+    assert total_contrib == 300, f"El bot no fue recortado correctamente: contribuyó {total_contrib} con stack 300"
+    assert game.bot_chips == 0, "El bot debería estar all-in"
 
-    # Forzar showdown
-    game.reveal_remaining_community_cards()
-    game.showdown()
+    print("✅ El raise fue recortado correctamente al stack disponible (300 fichas).")
 
 if __name__ == "__main__":
-    test_manual_raise_input()
+    test_forzar_raise_excesivo_y_recorte()
