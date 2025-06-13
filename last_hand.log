@@ -1,35 +1,15 @@
-Dealer: BOT -> SB=10 (bot), BB=20 (jugador)
-=== Nueva mano ===
-Dealer: BOT
-Tus cartas: ['5C', '8H']
-Fichas -> Tú: 1150 | Bot: 820 | Pot: 30
---- Nueva ronda de apuestas (inicia: BOT) ---
-Bot hace CALL de 10 fichas.
-Player hace CHECK.
-Ronda de apuestas completada.
-Flop: ['2S', '2C', '5S']
-Fichas -> Tú: 1150 | Bot: 810 | Pot: 40
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace RAISE de 20 fichas (incluyendo call).
-Bot hace CALL de 20 fichas.
-Ronda de apuestas completada.
-Turn: ['2S', '2C', '5S', 'QD']
-Fichas -> Tú: 1130 | Bot: 790 | Pot: 80
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace RAISE de 70 fichas (incluyendo call).
-Bot hace CALL de 70 fichas.
-Ronda de apuestas completada.
-River: ['2S', '2C', '5S', 'QD', '2H']
-Fichas -> Tú: 1060 | Bot: 720 | Pot: 220
---- Nueva ronda de apuestas (inicia: PLAYER) ---
-Player hace RAISE de 200 fichas (incluyendo call).
-Bot hace CALL de 200 fichas.
-Ronda de apuestas completada.
+=== Mano forzada con all-in automático ===
+Tus cartas: ['3S', 'QD']
+Cartas del bot: ['2S', '8H']
+Comunitarias: ['QC', '9C', '8D', '7H', 'KC']
+Fichas -> Tú: 40 | Bot: 0 | Pot: 0
+--- Showdown directo por falta de fichas ---
 Showdown!
-Tus cartas: ['5C', '8H'] + Comunidad: ['2S', '2C', '5S', 'QD', '2H']
-Cartas del bot: ['9D', 'QH'] + Comunidad: ['2S', '2C', '5S', 'QD', '2H']
-Tu mejor jugada: Full House: triple de 2 y pareja de 5
-Mejor jugada del bot: Full House: triple de 2 y pareja de 12
--- Reparto del pot: Main Pot=620, Side Pot=0 (Pot total: 620 fichas)
-El bot gana la mano y se lleva el MAIN POT de 620 fichas.
-Fichas -> Tú: 860 | Bot: 1140 | Pot: 0
+Tus cartas: ['3S', 'QD'] + Comunidad: ['QC', '9C', '8D', '7H', 'KC']
+Cartas del bot: ['2S', '8H'] + Comunidad: ['QC', '9C', '8D', '7H', 'KC']
+Tu mejor jugada: Pareja de 12 con kickers 13, 9, 8
+Mejor jugada del bot: Pareja de 8 con kickers 13, 12, 9
+-- Reparto del pot: Main Pot=40, Side Pot=1960 (Pot total: 2000 fichas)
+¡Ganas la mano y te llevas el MAIN POT de 40 fichas!
+El SIDE POT (1960 fichas) retorna al bot.
+Fichas -> Tú: 80 | Bot: 1960 | Pot: 0
